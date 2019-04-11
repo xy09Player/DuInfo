@@ -108,6 +108,23 @@ def test(flag='val', is_sbj=True, test_value=0.5):
             text = text_lists[i]
             r = set([(''.join(text[r_i[0][0]: r_i[0][1]+1]), i2s[r_i[1]], ''.join(text[r_i[2][0]: r_i[2][1]+1]))
                      for r_i in R[i]])
+
+            p_set = set([r_i[1] for r_i in r])
+            if '妻子' in p_set and '丈夫' not in p_set:
+                r_tmp = set([])
+                for r_i in r:
+                    r_tmp.add(r_i)
+                    if r_i[1] == '妻子':
+                        r_tmp.add((r_i[2], '丈夫', r_i[0]))
+                r = r_tmp
+            if '妻子' not in p_set and '丈夫' in p_set:
+                r_tmp = set([])
+                for r_i in r:
+                    r_tmp.add(r_i)
+                    if r_i[1] == '丈夫':
+                        r_tmp.add((r_i[2], '妻子', r_i[0]))
+                r = r_tmp
+
             A += len(r & t)
             B += len(r)
             C += len(t)
@@ -141,23 +158,23 @@ def test(flag='val', is_sbj=True, test_value=0.5):
 
 
 if __name__ == '__main__':
-    best_i = -9
-    best_f1 = -99
-    best_p = -99
-    best_r = -99
-    for i in np.arange(0.3, 0.61, 0.05):
-        print(f'test_value={i}...')
-        f1, precision, recall = test(flag='val', is_sbj=False, test_value=i)
-        if f1 > best_f1:
-            best_f1 = f1
-            best_r = recall
-            best_p = precision
-            best_i = i
-    print('best_i:%.2f, best_f1:%.4f, best_p:%.4f, best_r:%.4f' % (best_i, best_f1, best_p, best_r))
+    # best_i = -9
+    # best_f1 = -99
+    # best_p = -99
+    # best_r = -99
+    # for i in np.arange(0.3, 0.61, 0.05):
+    #     print(f'test_value={i}...')
+    #     f1, precision, recall = test(flag='val', is_sbj=False, test_value=i)
+    #     if f1 > best_f1:
+    #         best_f1 = f1
+    #         best_r = recall
+    #         best_p = precision
+    #         best_i = i
+    # print('best_i:%.2f, best_f1:%.4f, best_p:%.4f, best_r:%.4f' % (best_i, best_f1, best_p, best_r))
 
     # test(flag='val', is_sbj=True, test_value=0.4)
 
-    # test(flag='val', is_sbj=False, test_value=0.4)
+    test(flag='val', is_sbj=False, test_value=0.5)
 
 
 

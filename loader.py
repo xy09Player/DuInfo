@@ -81,6 +81,9 @@ def build_vocab_embedding():
     np.save('../data/embedding.pkl', embedding)
 
 
+
+
+
 def word2index(word_lists):
     with open('../data/lang.pkl', 'rb') as f:
         lang = pickle.load(f)
