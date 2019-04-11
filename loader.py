@@ -155,7 +155,7 @@ def gen_train_data_sbj(file_path):
     for sbj_start in sbj_starts:
         sample_nums += sum(sbj_start)
 
-    print('make samples, nums:%d/%d, radio:%.4f' % (sample_nums, all_nums, sample_nums/all_nums))
+    print('sbj, make samples, nums:%d/%d, radio:%.4f' % (sample_nums, all_nums, sample_nums/all_nums))
 
     return texts, sbj_starts, sbj_ends
 
@@ -228,7 +228,7 @@ def gen_train_data_spo(file_path):
             obj_starts.append(obj_start[sbj])
             obj_ends.append(obj_end[sbj])
 
-    print('make samples, nums:%d/%d, radio:%.4f' % (len(texts), sbj_nums, len(texts)/sbj_nums))
+    print('spo make samples, nums:%d/%d, radio:%.4f' % (len(texts), sbj_nums, len(texts)/sbj_nums))
     return texts, sbj_starts, sbj_ends, sbj_bounds, obj_starts, obj_ends
 
 
@@ -262,7 +262,7 @@ class MyDatasetSbj(Dataset):
             self.sbj_starts = padding(self.sbj_starts)
             self.sbj_ends = padding(self.sbj_ends)
         else:
-            self.texts = gen_test_data(file_path, False)
+            self.texts, _ = gen_test_data(file_path, False, True)
 
         self.texts = word2index(self.texts)
         self.texts = padding(self.texts)

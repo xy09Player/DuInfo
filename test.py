@@ -127,7 +127,9 @@ if __name__ == '__main__':
     #     print(f'{i}th')
     #     test(flag='val', is_sbj=False, test_value=i)
 
-    test(flag='test', is_sbj=False, test_value=0.4)
+    # test(flag='val', is_sbj=True, test_value=0.4)
+
+    test(flag='val', is_sbj=False, test_value=0.4)
 
 
 

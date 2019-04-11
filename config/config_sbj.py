@@ -7,7 +7,7 @@ class Config:
     mode = 'LSTM'
     hidden_size = 64
     dropout_p = 0.2
-    encoder_layer_num = 1
+    encoder_layer_num = 2
 
     batch_size = 64
     test_batch_size = 64
@@ -15,6 +15,6 @@ class Config:
     early_stop = 5
     lr = 1e-3
 
-    model_path = 'model_sbj_1'
+    model_path = 'model_sbj_2'
 
 config = Config()
