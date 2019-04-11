@@ -25,6 +25,9 @@ class ModelSpo(nn.Module):
         model_sbj_.load_state_dict(state['model_state'])
         print('load model_sbj, loss:%.4f, epoch:%2d, step:%4d, time:%4d' % (state['loss'], state['epoch'],
                                                                             state['steps'], state['time']))
+        # tag embedding
+        self.embedding_tag = model_sbj_.embedding_tag
+
         # 语义编码
         self.encoder = model_sbj_.encoder
 
@@ -48,7 +51,7 @@ class ModelSpo(nn.Module):
 
     def forward(self, batch, is_train=True, test_value=0.5):
         if is_train:
-            text, sbj_start, sbj_end, sbj_bound, obj_start, obj_end = batch
+            text, tag, sbj_start, sbj_end, sbj_bound, obj_start, obj_end = batch
             batch_size = text.size(0)
 
             # 语义编码
@@ -56,8 +59,11 @@ class ModelSpo(nn.Module):
             max_len = text_mask.sum(dim=1).max().item()
             text_mask = text_mask[:, :max_len]
             text = text[:, :max_len]
+            tag = tag[:, :max_len]
             text_emb = self.embedding(text)
-            text_vec = self.encoder(text_emb, text_mask)
+            tag_emb = self.embedding_tag(tag).transpose(0, 1)
+            vec = torch.cat([text_emb, tag_emb], dim=2)
+            text_vec = self.encoder(vec, text_mask)
 
             # 位置压缩
             sbj_start = sbj_start[:, :max_len]
@@ -104,15 +110,18 @@ class ModelSpo(nn.Module):
             return loss
 
         else:
-            text = batch
+            text, tag = batch
 
             # 语义编码
             text_mask = torch.ne(text, 0)
             max_len = text_mask.sum(dim=1).max().item()
             text_mask = text_mask[:, :max_len]
             text = text[:, :max_len]
+            tag = tag[:, :max_len]
             text_emb = self.embedding(text)
-            text_vec = self.encoder(text_emb, text_mask)
+            tag_emb = self.embedding_tag(tag).transpose(0, 1)
+            vec = torch.cat([text_emb, tag_emb], dim=2)
+            text_vec = self.encoder(vec, text_mask)
 
             # sbj位置映射
             s1 = torch.sigmoid(self.sbj_start_fc(text_vec)).squeeze()  # (seq_len)

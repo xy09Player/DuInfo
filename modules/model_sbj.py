@@ -19,10 +19,16 @@ class ModelSbj(nn.Module):
         self.is_bn = False
         self.embedding = embedding.Embedding(param['embedding'])
 
+        self.embedding_tag = nn.Embedding(
+            num_embeddings=100,
+            embedding_dim=8,
+            padding_idx=0
+        )
+
         # 语义编码
         self.encoder = encoder.Rnn(
             mode=self.mode,
-            input_size=300,
+            input_size=300 + 8,
             hidden_size=self.hidden_size,
             dropout_p=self.encoder_dropout_p,
             bidirectional=True,
@@ -45,15 +51,19 @@ class ModelSbj(nn.Module):
 
     def forward(self, batch, is_train=True):
         if is_train:
-            text, sbj_start, sbj_end = batch
+            text, tag, sbj_start, sbj_end = batch
 
             # 语义编码
             text_mask = torch.ne(text, 0)
             max_len = text_mask.sum(dim=1).max().item()
             text_mask = text_mask[:, :max_len]
             text = text[:, :max_len]
+            tag = tag[:, : max_len]
             text_emb = self.embedding(text)
-            text_vec = self.encoder(text_emb, text_mask)
+            tag_emb = self.embedding_tag(tag).transpose(0, 1)
+            vec = torch.cat([text_emb, tag_emb], dim=2)
+
+            text_vec = self.encoder(vec, text_mask)
 
             # 位置压缩
             sbj_start = sbj_start[:, :max_len]
@@ -74,15 +84,18 @@ class ModelSbj(nn.Module):
 
             return loss
         else:
-            text = batch
+            text, tag = batch
 
             # 语义编码
             text_mask = torch.ne(text, 0)
             max_len = text_mask.sum(dim=1).max().item()
             text_mask = text_mask[:, :max_len]
             text = text[:, :max_len]
+            tag = tag[:, :max_len]
             text_emb = self.embedding(text)
-            text_vec = self.encoder(text_emb, text_mask)
+            tag_emb = self.embedding_tag(tag).transpose(0, 1)
+            vec = torch.cat([text_emb, tag_emb], dim=2)
+            text_vec = self.encoder(vec, text_mask)
 
             # sbj位置映射
             s1 = torch.sigmoid(self.sbj_start_fc(text_vec)).squeeze().transpose(0, 1)  # (b, seq_len)

@@ -15,6 +15,6 @@ class Config:
     early_stop = 5
     lr = 1e-3
 
-    model_path = 'model_sbj_2'
+    model_path = 'model_sbj_1'
 
 config = Config()

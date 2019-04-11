@@ -51,7 +51,7 @@ def test(flag='val', is_sbj=True, test_value=0.5):
         i2s = pickle.load(f)['i2s']
     R = []
     for batch in tqdm(data_loader):
-        batch = batch.cuda()
+        batch = [b.cuda() for b in batch]
         if is_sbj:
             s1, s2 = model(batch, is_train=False)
             s1 = s1.detach().cpu().numpy()
@@ -85,7 +85,7 @@ def test(flag='val', is_sbj=True, test_value=0.5):
             R.append(r)
 
     if flag == 'val' and is_sbj:
-        text_lists, result = loader.gen_test_data('../data/dev_data.json', get_answer=True, is_sbj=True)
+        text_lists, _, result = loader.gen_test_data('../data/dev_data.json', get_answer=True, is_sbj=True)
         A, B, C = 1e-10, 1e-10, 1e-10
         for i in range(len(text_lists)):
             t = result[i]
@@ -101,7 +101,7 @@ def test(flag='val', is_sbj=True, test_value=0.5):
         print('sbj model, f1:%.4f, precision:%.4f, recall:%.4f\n' % (f1, precision, recall))
 
     if flag == 'val' and (not is_sbj):
-        text_lists, result = loader.gen_test_data('../data/dev_data.json', get_answer=True, is_sbj=False)
+        text_lists, _, result = loader.gen_test_data('../data/dev_data.json', get_answer=True, is_sbj=False)
         A, B, C = 1e-10, 1e-10, 1e-10
         for i in range(len(text_lists)):
             t = set(result[i])
@@ -134,7 +134,7 @@ def test(flag='val', is_sbj=True, test_value=0.5):
         print('spo model, f1:%.4f, precision:%.4f, recall:%.4f\n' % (f1, precision, recall))
 
     if flag == 'test':
-        text_lists, texts = loader.gen_test_data('../data/test1_data_postag.json', get_answer=False, is_sbj=False)
+        text_lists, _, texts = loader.gen_test_data('../data/test1_data_postag.json', get_answer=False, is_sbj=False)
         result_writer = open('../result/result.json', 'w')
         for i in range(len(text_lists)):
             text = text_lists[i]
@@ -172,7 +172,7 @@ if __name__ == '__main__':
     #         best_i = i
     # print('best_i:%.2f, best_f1:%.4f, best_p:%.4f, best_r:%.4f' % (best_i, best_f1, best_p, best_r))
 
-    # test(flag='val', is_sbj=True, test_value=0.4)
+    # test(flag='val', is_sbj=True, test_value=0.5)
 
     test(flag='val', is_sbj=False, test_value=0.5)
 
