@@ -7,39 +7,51 @@ import time
 import loader
 import numpy as np
 import matplotlib.pyplot as plt
-from modules import model_baseline
 import torch
 from torch.optim import Adam
+from config import config_sbj
+from config import config_spo
+from modules.model_sbj import ModelSbj
+from modules.model_spo import ModelSpo
 
 
-def train():
+# config = config_sbj.config
+config = config_spo.config
+
+
+def train(is_sbj=True):
     time_start = time.time()
     embedding = np.load('../data/embedding.pkl.npy')
     train_loader = loader.build_loader(
         file_path='../data/train_data.json',
-        batch_size=64,
+        batch_size=config.batch_size,
         shuffle=True,
-        drop_last=True
+        drop_last=True,
+        is_train=True,
+        is_sbj=is_sbj
     )
     val_loader = loader.build_loader(
         file_path='../data/dev_data.json',
-        batch_size=256,
+        batch_size=config.test_batch_size,
         shuffle=False,
-        drop_last=False
+        drop_last=False,
+        is_train=True,
+        is_sbj=is_sbj
     )
     param = {
         'embedding': embedding,
-        'mode': 'LSTM',
-        'hidden_size': 64,
-        'dropout_p': 0.2,
+        'mode': config.mode,
+        'hidden_size': config.hidden_size,
+        'dropout_p': config.dropout_p,
         'encoder_dropout_p': 0.1,
-        'encoder_layer_num': 1
+        'encoder_layer_num': config.encoder_layer_num,
+        'model_path_sbj': config.model_path_sbj if config.name in ['ModelSpo'] else 'xxx'
     }
-    model = model_baseline.ModelBase(param)
+    model = eval(config.name)(param)
     model.cuda()
 
     optimizer_param = filter(lambda p: p.requires_grad, model.parameters())
-    optimizer = Adam(optimizer_param, lr=1e-3)
+    optimizer = Adam(optimizer_param, lr=config.lr)
     model_param_num = 0
     for p in model.parameters():
         if p.requires_grad:
@@ -53,7 +65,7 @@ def train():
     val_loss_list = []
     steps = []
     early_stop = 0
-    for e in range(50):
+    for e in range(config.epochs):
         for batch in train_loader:
             batch = [b.cuda() for b in batch]
             model.train()
@@ -99,15 +111,17 @@ def train():
                     color='b',
                     label='val'
                 )
+                fig_path = '../result/' + config.model_path + '.png'
                 plt.xlabel('steps')
                 plt.ylabel('loss')
                 plt.legend()
                 plt.pause(0.000000001)
-                plt.savefig('../result/train.png')
+                plt.savefig(fig_path)
                 plt.show()
 
-                if os.path.isfile('../model/baseline.pkl'):
-                    state = torch.load('../model/baseline.pkl')
+                model_path = '../model/' + config.model_path + '.pkl'
+                if os.path.isfile(model_path):
+                    state = torch.load(model_path)
                 else:
                     state = {}
 
@@ -118,15 +132,16 @@ def train():
                     state['epoch'] = e
                     state['steps'] = sum(steps)
                     state['time'] = time.time() - time_start
-                    torch.save(state, '../model/baseline.pkl')
+                    torch.save(state, model_path)
                 else:
                     early_stop += 1
-                    if early_stop == 5:
+                    if early_stop == config.early_stop:
                         sys.exit()
 
 
 if __name__ == '__main__':
-    train()
+    # train(is_sbj=True)
+    train(is_sbj=False)
 
 
 

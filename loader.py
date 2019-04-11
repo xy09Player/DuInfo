@@ -105,7 +105,62 @@ def padding(index_lists, max_len=0):
     return result
 
 
-def gen_train_data(file_path):
+def gen_train_data_sbj(file_path):
+    data = []
+    with open(file_path, 'r') as f:
+        for line in f:
+            tmp = json.loads(line)
+            data.append({
+                'text': tmp['text'],
+                'spo_list': [(spo['subject'], spo['predicate'], spo['object']) for spo in tmp['spo_list']]
+            })
+
+    texts = []
+    sbj_starts = []
+    sbj_ends = []
+    for d in data:
+        text = d['text']
+        text_list = jieba.lcut(text, HMM=False)
+        text_len = len(text_list)
+        sbj_start = np.zeros(text_len).tolist()
+        sbj_end = np.zeros(text_len).tolist()
+
+        flag = 0
+        for spo in d['spo_list']:
+            sbj_s = -1
+            sbj_e = -1
+            sbj_list = jieba.lcut(spo[0], HMM=False)
+            sbj_len = len(sbj_list)
+            for i in range(0, text_len-sbj_len+1):
+                if text_list[i: i+sbj_len] == sbj_list:
+                    sbj_s = i
+                    sbj_e = i + sbj_len - 1
+                    break
+            if sbj_s != -1 and sbj_e != -1:
+                sbj_start[sbj_s] = 1
+                sbj_end[sbj_e] = 1
+                flag = 1
+
+        if flag:
+            texts.append(text_list)
+            sbj_starts.append(sbj_start)
+            sbj_ends.append(sbj_end)
+
+    spo_lists = [d['spo_list'] for d in data]
+    all_nums = 0
+    for spo_list in spo_lists:
+        all_nums += len(set([spo[0] for spo in spo_list]))
+
+    sample_nums = 0
+    for sbj_start in sbj_starts:
+        sample_nums += sum(sbj_start)
+
+    print('make samples, nums:%d/%d, radio:%.4f' % (sample_nums, all_nums, sample_nums/all_nums))
+
+    return texts, sbj_starts, sbj_ends
+
+
+def gen_train_data_spo(file_path):
     data = []
     with open(file_path, 'r') as f:
         for line in f:
@@ -177,7 +232,7 @@ def gen_train_data(file_path):
     return texts, sbj_starts, sbj_ends, sbj_bounds, obj_starts, obj_ends
 
 
-def gen_test_data(file_path, get_answer):
+def gen_test_data(file_path, get_answer, is_sbj=True):
     data = []
     result = []
     texts = []
@@ -185,31 +240,57 @@ def gen_test_data(file_path, get_answer):
         for line in f:
             tmp = json.loads(line)
             data.append(jieba.lcut(tmp['text'], HMM=False))
+            texts.append(tmp['text'])
             if get_answer:
-                result.append([(spo['subject'], spo['predicate'], spo['object']) for spo in tmp['spo_list']])
-            else:
-                texts.append(tmp['text'])
+                if is_sbj:
+                    result.append(set([spo['subject'] for spo in tmp['spo_list']]))
+                else:
+                    result.append([(spo['subject'], spo['predicate'], spo['object']) for spo in tmp['spo_list']])
 
-    data = data[:500]
     if get_answer:
         return data, result
     else:
-        return data
+        return data, texts
 
 
-class MyDataset(Dataset):
+class MyDatasetSbj(Dataset):
+    def __init__(self, file_path, is_train=True):
+        super(Dataset, self).__init__()
+        self.is_train = is_train
+        if is_train:
+            self.texts, self.sbj_starts, self.sbj_ends = gen_train_data_sbj(file_path)
+            self.sbj_starts = padding(self.sbj_starts)
+            self.sbj_ends = padding(self.sbj_ends)
+        else:
+            self.texts = gen_test_data(file_path, False)
+
+        self.texts = word2index(self.texts)
+        self.texts = padding(self.texts)
+
+    def __len__(self):
+        return len(self.texts)
+
+    def __getitem__(self, item):
+        if self.is_train:
+            return torch.LongTensor(self.texts[item]), torch.LongTensor(self.sbj_starts[item]),\
+                    torch.LongTensor(self.sbj_ends[item])
+        else:
+            return torch.LongTensor(self.texts[item])
+
+
+class MyDatasetSpo(Dataset):
     def __init__(self, file_path, is_train=True):
         super(Dataset, self).__init__()
         self.is_train = is_train
         if is_train:
             self.texts, self.sbj_starts, self.sbj_ends, self.sbj_bounds, self.obj_starts, self.obj_ends = \
-                gen_train_data(file_path)
+                gen_train_data_spo(file_path)
             self.sbj_starts = padding(self.sbj_starts)
             self.sbj_ends = padding(self.sbj_ends)
             self.obj_starts = padding(self.obj_starts)
             self.obj_ends = padding(self.obj_ends)
         else:
-            self.texts = gen_test_data(file_path, False)
+            self.texts, _ = gen_test_data(file_path, False, False)
 
         self.texts = word2index(self.texts)
         self.texts = padding(self.texts)
@@ -226,8 +307,11 @@ class MyDataset(Dataset):
             return torch.LongTensor(self.texts[item])
 
 
-def build_loader(file_path, batch_size, shuffle, drop_last, is_train=True):
-    dataset = MyDataset(file_path, is_train=is_train)
+def build_loader(file_path, batch_size, shuffle, drop_last, is_train=True, is_sbj=True):
+    if is_sbj:
+        dataset = MyDatasetSbj(file_path, is_train=is_train)
+    else:
+        dataset = MyDatasetSpo(file_path, is_train=is_train)
     data_iter = DataLoader(
         dataset=dataset,
         batch_size=batch_size,
@@ -239,5 +323,5 @@ def build_loader(file_path, batch_size, shuffle, drop_last, is_train=True):
 
 if __name__ == '__main__':
     # build_vocab_embedding()
-    get_dict_schemas()
-    # pass
+    # get_dict_schemas()
+    pass

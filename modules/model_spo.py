@@ -3,14 +3,13 @@
 
 import torch
 from torch import nn
-from modules import embedding, encoder
+from modules import embedding, encoder, model_sbj
 import torch.nn.functional as F
-import loader
 
 
-class ModelBase(nn.Module):
+class ModelSpo(nn.Module):
     def __init__(self, param):
-        super(ModelBase, self).__init__()
+        super(ModelSpo, self).__init__()
 
         self.mode = param['mode']
         self.hidden_size = param['hidden_size']
@@ -20,20 +19,18 @@ class ModelBase(nn.Module):
         self.is_bn = False
         self.embedding = embedding.Embedding(param['embedding'])
 
+        model_sbj_ = model_sbj.ModelSbj(param)
+        model_path = '../model/' + param['model_path_sbj'] + '.pkl'
+        state = torch.load(model_path)
+        model_sbj_.load_state_dict(state['model_state'])
+        print('load model_sbj, loss:%.4f, epoch:%2d, step:%4d, time:%4d' % (state['loss'], state['epoch'],
+                                                                            state['steps'], state['time']))
         # 语义编码
-        self.encoder = encoder.Rnn(
-            mode=self.mode,
-            input_size=300,
-            hidden_size=self.hidden_size,
-            dropout_p=self.encoder_dropout_p,
-            bidirectional=True,
-            layer_num=self.encoder_layer_num,
-            is_bn=self.is_bn
-        )
+        self.encoder = model_sbj_.encoder
 
         # sbj位置映射
-        self.sbj_start_fc = nn.Linear(self.hidden_size*2, 1)
-        self.sbj_end_fc = nn.Linear(self.hidden_size*2, 1)
+        self.sbj_start_fc = model_sbj_.sbj_start_fc
+        self.sbj_end_fc = model_sbj_.sbj_end_fc
 
         # obj位置映射
         self.obj_start_fc = nn.Linear(self.hidden_size*4, 50)
@@ -43,13 +40,9 @@ class ModelBase(nn.Module):
         self.reset_parameters()
 
     def reset_parameters(self):
-        torch.nn.init.xavier_uniform_(self.sbj_start_fc.weight)
-        torch.nn.init.xavier_uniform_(self.sbj_end_fc.weight)
         torch.nn.init.xavier_uniform_(self.obj_start_fc.weight)
         torch.nn.init.xavier_uniform_(self.obj_end_fc.weight)
 
-        torch.nn.init.constant_(self.sbj_start_fc.bias, 0.0)
-        torch.nn.init.constant_(self.sbj_end_fc.bias, 0.0)
         torch.nn.init.constant_(self.obj_start_fc.bias, 0.0)
         torch.nn.init.constant_(self.obj_end_fc.bias, 0.0)
 
@@ -106,13 +99,12 @@ class ModelBase(nn.Module):
             loss_obj_e = F.cross_entropy(o2.reshape(-1, 50), obj_end.reshape(-1), reduction='none')
             loss_obj_e = (loss_obj_e * text_mask).sum() / value_num
 
-            loss = 2 * (loss_sbj_s + loss_sbj_e) + loss_obj_s + loss_obj_e
+            loss = 0.1 * (loss_sbj_s + loss_sbj_e) + loss_obj_s + loss_obj_e
 
             return loss
 
         else:
             text = batch
-            batch_size = text.size(0)
 
             # 语义编码
             text_mask = torch.ne(text, 0)
@@ -123,45 +115,33 @@ class ModelBase(nn.Module):
             text_vec = self.encoder(text_emb, text_mask)
 
             # sbj位置映射
-            s1 = torch.sigmoid(self.sbj_start_fc(text_vec)).squeeze().transpose(0, 1)  # (b, seq_len)
-            s2 = torch.sigmoid(self.sbj_end_fc(text_vec)).squeeze().transpose(0, 1)
+            s1 = torch.sigmoid(self.sbj_start_fc(text_vec)).squeeze()  # (seq_len)
+            s2 = torch.sigmoid(self.sbj_end_fc(text_vec)).squeeze()
 
-            text_vec = text_vec.transpose(0, 1)
+            text_vec = text_vec.transpose(0, 1).squeeze()  # (seq_len, h*2)
             R = []
-            for i in range(batch_size):
-                R_tmp = []
-                sjb_bounds = []
-                for j, s1_item in enumerate(s1[i]):
-                    if s1_item >= test_value:
-                        for k, s2_item in enumerate(s2[i][j:]):
-                            if s2_item >= test_value:
-                                sjb_bounds.append([j, j+k])
-                                break
-                if sjb_bounds:
-                    sjb_vec = torch.zeros(len(sjb_bounds), self.hidden_size*2).cuda()
-                    for m, sjb_bound in enumerate(sjb_bounds):
-                        tmp = torch.arange(sjb_bound[0], sjb_bound[1]+1).cuda()
-                        tmp = text_vec[i].index_select(dim=0, index=tmp)
-                        sjb_vec[m] = tmp.mean(dim=0)
+            for i, s1_item in enumerate(s1):
+                sbj = ''
+                if s1_item >= test_value:
+                    for j, s2_item in enumerate(s2[i:]):
+                        if s2_item >= test_value:
+                            sbj = [i, i+j]
+                            break
+                if sbj:
+                    sbj_range = torch.arange(sbj[0], sbj[1]+1).cuda()
+                    sbj_vec = text_vec.index_select(dim=0, index=sbj_range)
+                    sbj_vec = sbj_vec.mean(dim=0)
+                    text_sbj_vec = torch.cat([text_vec, sbj_vec.expand(text_vec.size())], dim=1)
 
-                    text_vec_i = text_vec[i].unsqueeze(0).expand(len(sjb_bounds), text_vec.size(1), text_vec.size(2))
-                    sjb_vec = sjb_vec.unsqueeze(1).expand(len(sjb_bounds), text_vec.size(1), text_vec.size(2))
-                    text_sjb_vec = torch.cat([text_vec_i, sjb_vec], dim=2)
+                    o1_i = self.obj_start_fc(text_sbj_vec)
+                    o1_i = torch.argmax(o1_i, dim=1)
+                    o2_i = self.obj_end_fc(text_sbj_vec)
+                    o2_i = torch.argmax(o2_i, dim=1)
 
-                    o1_i = self.obj_start_fc(text_sjb_vec)
-                    o1_i = torch.argmax(o1_i, dim=2)
-                    o2_i = self.obj_end_fc(text_sjb_vec)
-                    o2_i = torch.argmax(o2_i, dim=2)
-
-                    for m in range(len(sjb_bounds)):
-                        for n, o1_item in enumerate(o1_i[m]):
-                            if o1_item > 0:
-                                for nn, o2_item in enumerate(o2_i[m][n:]):
-                                    if o1_item == o2_item:
-                                        sbj = [sjb_bounds[m][0], sjb_bounds[m][1]]
-                                        obj = [n, n+nn]
-                                        p = o1_item.item()
-                                        R_tmp.append([sbj, p, obj])
-                                        break
-                R.append(R_tmp)
+                    for j, o1_item in enumerate(o1_i):
+                        if o1_item > 0:
+                            for m, o2_item in enumerate(o2_i[j:]):
+                                if o1_item == o2_item:
+                                    R.append([sbj, o1_item.item(), [j, j+m]])
+                                    break
             return R
