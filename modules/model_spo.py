@@ -144,4 +144,40 @@ class ModelSpo(nn.Module):
                                 if o1_item == o2_item:
                                     R.append([sbj, o1_item.item(), [j, j+m]])
                                     break
+
+            # R = []
+            # index_s1 = -1
+            # for i in range(len(s1)):
+            #     if i < index_s1:
+            #         continue
+            #
+            #     sbj = ''
+            #     if s1[i] >= test_value:
+            #         for j in range(i, len(s1)):
+            #             if s2[j] >= test_value:
+            #                 sbj = [i, j]
+            #                 index_s1 = j+1
+            #                 break
+            #     if sbj:
+            #         sbj_range = torch.arange(sbj[0], sbj[1]+1).cuda()
+            #         sbj_vec = text_vec.index_select(dim=0, index=sbj_range)
+            #         sbj_vec = sbj_vec.mean(dim=0)
+            #         text_sbj_vec = torch.cat([text_vec, sbj_vec.expand(text_vec.size())], dim=1)
+            #
+            #         o1_i = self.obj_start_fc(text_sbj_vec)
+            #         o1_i = torch.argmax(o1_i, dim=1)
+            #         o2_i = self.obj_end_fc(text_sbj_vec)
+            #         o2_i = torch.argmax(o2_i, dim=1)
+            #
+            #         index_o1 = -1
+            #         for m in range(len(o1_i)):
+            #             if m < index_o1:
+            #                 continue
+            #             if o1_i[m] > 0:
+            #                 for n in range(m, len(o1_i)):
+            #                     if o1_i[m] == o2_i[n]:
+            #                         R.append([sbj, o1_i[m].item(), [m, n]])
+            #                         index_o1 = n + 1
+            #                         break
+
             return R

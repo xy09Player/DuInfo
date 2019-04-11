@@ -56,6 +56,7 @@ def test(flag='val', is_sbj=True, test_value=0.5):
             s1, s2 = model(batch, is_train=False)
             s1 = s1.detach().cpu().numpy()
             s2 = s2.detach().cpu().numpy()
+
             for s1_i, s2_i in zip(s1, s2):
                 r = []
                 for i, s1_i_i in enumerate(s1_i):
@@ -65,6 +66,20 @@ def test(flag='val', is_sbj=True, test_value=0.5):
                                 r.append([i, i+j+1])
                                 break
                 R.append(r)
+
+            # for s1_i, s2_i in zip(s1, s2):
+            #     r = []
+            #     index = -1
+            #     for i in range(len(s1_i)):
+            #         if s1_i[i] >= test_value:
+            #             for j in range(i, len(s1_i)):
+            #                 if s2_i[j] >= test_value:
+            #                     r.append([i, j+1])
+            #                     index = j+1
+            #                     break
+            #         if i < index:
+            #             continue
+            #     R.append(r)
         else:
             r = model(batch, is_train=False, test_value=test_value)
             R.append(r)
@@ -83,7 +98,7 @@ def test(flag='val', is_sbj=True, test_value=0.5):
         f1 = A * 2 / (B + C)
         precision = A / B
         recall = A / C
-        print('sbj model, f1:%.4f, precision:%.4f, recall:%.4f' % (f1, precision, recall))
+        print('sbj model, f1:%.4f, precision:%.4f, recall:%.4f\n' % (f1, precision, recall))
 
     if flag == 'val' and (not is_sbj):
         text_lists, result = loader.gen_test_data('../data/dev_data.json', get_answer=True, is_sbj=False)
@@ -96,10 +111,10 @@ def test(flag='val', is_sbj=True, test_value=0.5):
             A += len(r & t)
             B += len(r)
             C += len(t)
-            f1 = A * 2 / (B + C)
+        f1 = A * 2 / (B + C)
         precision = A / B
         recall = A / C
-        print('spo model, f1:%.4f, precision:%.4f, recall:%.4f' % (f1, precision, recall))
+        print('spo model, f1:%.4f, precision:%.4f, recall:%.4f\n' % (f1, precision, recall))
 
     if flag == 'test':
         text_lists, texts = loader.gen_test_data('../data/test1_data_postag.json', get_answer=False, is_sbj=False)
@@ -119,17 +134,30 @@ def test(flag='val', is_sbj=True, test_value=0.5):
             result_writer.write('\n')
         result_writer.close()
 
+    if flag == 'val' and (not is_sbj):
+        return f1, precision, recall
+
     print(f'time:{time.time()-time_start}')
 
 
 if __name__ == '__main__':
-    # for i in np.arange(0.2, 0.51, 0.05):
-    #     print(f'{i}th')
-    #     test(flag='val', is_sbj=False, test_value=i)
+    best_i = -9
+    best_f1 = -99
+    best_p = -99
+    best_r = -99
+    for i in np.arange(0.3, 0.61, 0.05):
+        print(f'test_value={i}...')
+        f1, precision, recall = test(flag='val', is_sbj=False, test_value=i)
+        if f1 > best_f1:
+            best_f1 = f1
+            best_r = recall
+            best_p = precision
+            best_i = i
+    print('best_i:%.2f, best_f1:%.4f, best_p:%.4f, best_r:%.4f' % (best_i, best_f1, best_p, best_r))
 
     # test(flag='val', is_sbj=True, test_value=0.4)
 
-    test(flag='val', is_sbj=False, test_value=0.4)
+    # test(flag='val', is_sbj=False, test_value=0.4)
 
 
 
