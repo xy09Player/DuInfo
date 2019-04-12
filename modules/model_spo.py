@@ -4,6 +4,7 @@
 import torch
 from torch import nn
 from modules import embedding, encoder, model_sbj
+from modules.noise import GaussianNoise
 import torch.nn.functional as F
 
 
@@ -27,6 +28,8 @@ class ModelSpo(nn.Module):
                                                                             state['steps'], state['time']))
         # tag embedding
         self.embedding_tag = model_sbj_.embedding_tag
+
+        self.gaussian_noise = model_sbj_.gaussian_noise
 
         # 语义编码
         self.encoder = model_sbj_.encoder
@@ -59,11 +62,8 @@ class ModelSpo(nn.Module):
             max_len = text_mask.sum(dim=1).max().item()
             text_mask = text_mask[:, :max_len]
             text = text[:, :max_len]
-            tag = tag[:, :max_len]
             text_emb = self.embedding(text)
-            tag_emb = self.embedding_tag(tag).transpose(0, 1)
-            vec = torch.cat([text_emb, tag_emb], dim=2)
-            text_vec = self.encoder(vec, text_mask)
+            text_vec = self.encoder(text_emb, text_mask)
 
             # 位置压缩
             sbj_start = sbj_start[:, :max_len]
@@ -117,11 +117,8 @@ class ModelSpo(nn.Module):
             max_len = text_mask.sum(dim=1).max().item()
             text_mask = text_mask[:, :max_len]
             text = text[:, :max_len]
-            tag = tag[:, :max_len]
             text_emb = self.embedding(text)
-            tag_emb = self.embedding_tag(tag).transpose(0, 1)
-            vec = torch.cat([text_emb, tag_emb], dim=2)
-            text_vec = self.encoder(vec, text_mask)
+            text_vec = self.encoder(text_emb, text_mask)
 
             # sbj位置映射
             s1 = torch.sigmoid(self.sbj_start_fc(text_vec)).squeeze()  # (seq_len)

@@ -151,7 +151,7 @@ def test(flag='val', is_sbj=True, test_value=0.5):
             result_writer.write('\n')
         result_writer.close()
 
-    if flag == 'val' and (not is_sbj):
+    if flag == 'val':
         return f1, precision, recall
 
     print(f'time:{time.time()-time_start}')
@@ -162,9 +162,9 @@ if __name__ == '__main__':
     # best_f1 = -99
     # best_p = -99
     # best_r = -99
-    # for i in np.arange(0.3, 0.61, 0.05):
-    #     print(f'test_value={i}...')
-    #     f1, precision, recall = test(flag='val', is_sbj=False, test_value=i)
+    # for i in np.arange(0.35, 0.61, 0.05):
+    #     print(f'sbj, test_value={i}...')
+    #     f1, precision, recall = test(flag='val', is_sbj=True, test_value=i)
     #     if f1 > best_f1:
     #         best_f1 = f1
     #         best_r = recall
@@ -172,9 +172,24 @@ if __name__ == '__main__':
     #         best_i = i
     # print('best_i:%.2f, best_f1:%.4f, best_p:%.4f, best_r:%.4f' % (best_i, best_f1, best_p, best_r))
 
+    best_i = -9
+    best_f1 = -99
+    best_p = -99
+    best_r = -99
+    for i in np.arange(0.35, 0.56, 0.05):
+        print(f'spo, test_value={i}...')
+        f1, precision, recall = test(flag='val', is_sbj=False, test_value=i)
+        if f1 > best_f1:
+            best_f1 = f1
+            best_r = recall
+            best_p = precision
+            best_i = i
+    print('best_i:%.2f, best_f1:%.4f, best_p:%.4f, best_r:%.4f' % (best_i, best_f1, best_p, best_r))
+
+
     # test(flag='val', is_sbj=True, test_value=0.5)
 
-    test(flag='val', is_sbj=False, test_value=0.5)
+    # test(flag='val', is_sbj=False, test_value=0.5)
 
 
 
