@@ -15,15 +15,11 @@ from modules.model_sbj import ModelSbj
 from modules.model_spo import ModelSpo
 
 
-# config = config_sbj.config
-config = config_spo.config
-
-
-def train(is_sbj=True):
+def train(is_sbj, config):
     time_start = time.time()
     embedding = np.load('../data/embedding.pkl.npy')
     train_loader = loader.build_loader(
-        file_path='../data/train_data.json',
+        file_path=config.train_path,
         batch_size=config.batch_size,
         shuffle=True,
         drop_last=True,
@@ -31,7 +27,7 @@ def train(is_sbj=True):
         is_sbj=is_sbj
     )
     val_loader = loader.build_loader(
-        file_path='../data/dev_data.json',
+        file_path=config.val_path,
         batch_size=config.test_batch_size,
         shuffle=False,
         drop_last=False,
@@ -135,13 +131,55 @@ def train(is_sbj=True):
                     torch.save(state, model_path)
                 else:
                     early_stop += 1
-                    if early_stop == config.early_stop:
-                        sys.exit()
+                    if early_stop >= config.early_stop:
+                        break
+        if early_stop >= config.early_stop:
+            break
 
 
 if __name__ == '__main__':
-    # train(is_sbj=True)
-    train(is_sbj=False)
+    # sbj
+    if False:
+        config = config_sbj.config
+        config.model_path = 'model_sbj_single_2'
+        train(is_sbj=True, config=config)
+
+    # spo
+    if False:
+        config = config_spo.config
+        config.model_path = 'model_spo_single_2'
+        config.model_path_sbj = 'model_sbj_single_2'
+        train(is_sbj=False, config=config)
+
+    # sbj + spo
+    if True:
+        config = config_sbj.config
+        config.model_path = 'model_sbj_single_2'
+        train(is_sbj=True, config=config)
+
+        config = config_spo.config
+        config.model_path = 'model_spo_single_2'
+        config.model_path_sbj = 'model_sbj_single_2'
+        train(is_sbj=False, config=config)
+
+    # 10-fold 集成
+    if False:
+        for i in range(10):
+            print(f'{i}-th, training....')
+            config = config_sbj.config
+            config.train_path = '../data/' + str(i) + '_train_data.json'
+            config.val_path = '../data/' + str(i) + '_val_data.json'
+            config.model_path = 'model_sbj_' + str(i)
+            train(is_sbj=True, config=config)
+
+            config = config_spo.config
+            config.train_path = '../data/' + str(i) + '_train_data.json'
+            config.val_path = '../data/' + str(i) + '_val_data.json'
+            config.model_path = 'model_spo_' + str(i)
+            config.model_path_sbj = 'model_sbj_' + str(i)
+            train(is_sbj=False, config=config)
+            print('\n')
+
 
 
 

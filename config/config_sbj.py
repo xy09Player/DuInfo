@@ -15,6 +15,7 @@ class Config:
     early_stop = 5
     lr = 1e-3
 
-    model_path = 'model_sbj_1'
+    train_path = '../data/train_data.json'
+    val_path = '../data/dev_data.json'
 
 config = Config()
