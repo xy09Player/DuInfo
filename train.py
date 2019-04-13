@@ -154,12 +154,12 @@ if __name__ == '__main__':
     # sbj + spo
     if True:
         config = config_sbj.config
-        config.model_path = 'model_sbj_single_2'
+        config.model_path = 'model_sbj_single_3'
         train(is_sbj=True, config=config)
 
         config = config_spo.config
-        config.model_path = 'model_spo_single_2'
-        config.model_path_sbj = 'model_sbj_single_2'
+        config.model_path = 'model_spo_single_3'
+        config.model_path_sbj = 'model_sbj_single_3'
         train(is_sbj=False, config=config)
 
     # 10-fold 集成

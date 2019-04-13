@@ -283,8 +283,11 @@ def test_ensemble(flag='val', is_sbj=True, test_value=0.5, config=None, model_pa
         result_writer = open('../result/result.json', 'w')
         for i in range(len(text_lists)):
             text = text_lists[i]
-            r = set([(''.join(text[r_i[0][0]: r_i[0][1]+1]), i2s[r_i[1]], ''.join(text[r_i[2][0]: r_i[2][1]+1]))
-                     for r_i in R[i]])
+            r = set([])
+            for j in range(len(R)):
+                r_tmp = set([(''.join(text[r_i[0][0]: r_i[0][1]+1]), i2s[r_i[1]], ''.join(text[r_i[2][0]: r_i[2][1]+1]))
+                             for r_i in R[j][i]])
+                r = r | r_tmp
 
             p_set = set([r_i[1] for r_i in r])
             if '妻子' in p_set and '丈夫' not in p_set:
@@ -373,14 +376,14 @@ if __name__ == '__main__':
     # 集成: sbj
     if False:
         config = config_sbj.config
-        model_paths = ['model_sbj_0', 'model_sbj_1']
+        model_paths = ['model_sbj_single_1', 'model_sbj_single_2', 'model_sbj_single_3']
         test_ensemble(flag='val', is_sbj=True, test_value=0.5, config=config, model_paths=model_paths)
 
     # 集成：spo
     if True:
         config = config_spo.config
         config.model_path_sbj = 'model_sbj_0'
-        model_paths = ['model_spo_0', 'model_spo_1']
-        test_ensemble(flag='val', is_sbj=False, test_value=0.5, config=config, model_paths=model_paths)
+        model_paths = ['model_spo_single_1', 'model_spo_single_2']
+        test_ensemble(flag='test', is_sbj=False, test_value=0.65, config=config, model_paths=model_paths)
 
 
