@@ -2,7 +2,6 @@
 # author = xy
 
 import os
-import sys
 import time
 import loader
 import numpy as np
@@ -141,18 +140,18 @@ if __name__ == '__main__':
     # sbj
     if False:
         config = config_sbj.config
-        config.model_path = 'model_sbj_single_2'
+        config.model_path = 'model_sbj_single'
         train(is_sbj=True, config=config)
 
     # spo
-    if False:
+    if True:
         config = config_spo.config
-        config.model_path = 'model_spo_single_2'
-        config.model_path_sbj = 'model_sbj_single_2'
+        config.model_path = 'model_spo_single'
+        config.model_path_sbj = 'model_sbj_single'
         train(is_sbj=False, config=config)
 
     # sbj + spo
-    if True:
+    if False:
         config = config_sbj.config
         config.model_path = 'model_sbj_single_3'
         train(is_sbj=True, config=config)

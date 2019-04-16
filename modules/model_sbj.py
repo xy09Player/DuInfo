@@ -6,6 +6,7 @@ from torch import nn
 from modules import embedding, encoder
 from modules.noise import GaussianNoise
 import torch.nn.functional as F
+from torchcrf import CRF
 
 
 class ModelSbj(nn.Module):
@@ -39,22 +40,22 @@ class ModelSbj(nn.Module):
         )
 
         # sbj位置映射
-        self.sbj_start_fc = nn.Linear(self.hidden_size*2, 1)
-        self.sbj_end_fc = nn.Linear(self.hidden_size*2, 1)
+        self.sbj = nn.Linear(self.hidden_size*2, 37)
+
+        # crf
+        self.crf = CRF(num_tags=37)
 
         self.reset_parameters()
 
     def reset_parameters(self):
-        torch.nn.init.xavier_uniform_(self.sbj_start_fc.weight)
-        torch.nn.init.xavier_uniform_(self.sbj_end_fc.weight)
+        torch.nn.init.xavier_uniform_(self.sbj.weight)
         torch.nn.init.xavier_uniform_(self.embedding_tag.weight)
 
-        torch.nn.init.constant_(self.sbj_start_fc.bias, 0.0)
-        torch.nn.init.constant_(self.sbj_end_fc.bias, 0.0)
+        torch.nn.init.constant_(self.sbj.bias, 0.0)
 
     def forward(self, batch, is_train=True):
         if is_train:
-            text, tag, sbj_start, sbj_end = batch
+            text, tag, sbj = batch
 
             # 语义编码
             text_mask = torch.ne(text, 0)
@@ -64,22 +65,12 @@ class ModelSbj(nn.Module):
             text_emb = self.embedding(text)
             text_vec = self.encoder(text_emb, text_mask)
 
-            # 位置压缩
-            sbj_start = sbj_start[:, :max_len]
-            sbj_end = sbj_end[:, :max_len]
+            # rnn_feat
+            sbj_feat = self.sbj(text_vec)  # (seq_len, b, 37)
+            sbj = sbj[:, :max_len].transpose(0, 1)  # (seq_len, b)
+            text_mask = text_mask.transpose(0, 1)  # (seq_len, b)
 
-            # sbj位置映射
-            s1 = torch.sigmoid(self.sbj_start_fc(text_vec)).squeeze().transpose(0, 1)  # (b, seq_len)
-            s2 = torch.sigmoid(self.sbj_end_fc(text_vec)).squeeze().transpose(0, 1)
-
-            # loss
-            text_mask = text_mask.float()
-            value_num = text_mask.sum().item()
-            loss_sbj_s = F.binary_cross_entropy(s1, sbj_start.float(), reduction='none')
-            loss_sbj_s = (loss_sbj_s * text_mask).sum() / value_num
-            loss_sbj_e = F.binary_cross_entropy(s2, sbj_end.float(), reduction='none')
-            loss_sbj_e = (loss_sbj_e * text_mask).sum() / value_num
-            loss = loss_sbj_s + loss_sbj_e
+            loss = -1 * self.crf(sbj_feat, sbj, mask=text_mask, reduction='token_mean')
 
             return loss
         else:
@@ -93,11 +84,11 @@ class ModelSbj(nn.Module):
             text_emb = self.embedding(text)
             text_vec = self.encoder(text_emb, text_mask)
 
-            # sbj位置映射
-            s1 = torch.sigmoid(self.sbj_start_fc(text_vec)).squeeze().transpose(0, 1)  # (b, seq_len)
-            s2 = torch.sigmoid(self.sbj_end_fc(text_vec)).squeeze().transpose(0, 1)
+            # rnn_feat
+            sbj_feat = self.sbj(text_vec)  # (seq_len, b, 37)
+            text_mask = text_mask.transpose(0, 1)  # (seq_len, b)
 
-            s1 = s1 * text_mask.float()
-            s2 = s2 * text_mask.float()
+            # decoder
+            sbj = self.crf.decode(sbj_feat, mask=text_mask)
 
-            return s1, s2
+            return sbj

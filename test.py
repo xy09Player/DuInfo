@@ -43,42 +43,47 @@ def test(flag='val', is_sbj=True, test_value=0.5, config=None):
     model.load_state_dict(state['model_state'])
     print('load model, loss:%.4f, epoch:%2d, step:%4d, time:%4d' % (state['loss'], state['epoch'],
                                                                     state['steps'], state['time']))
-    with open('../data/schemas.pkl', 'rb') as f:
-        i2s = pickle.load(f)['i2s']
+    # with open('../data/schemas.pkl', 'rb') as f:
+    #     i2s = pickle.load(f)['i2s']
+
     R = []
     for batch in tqdm(data_loader):
         batch = [b.cuda() for b in batch]
         if is_sbj:
-            s1, s2 = model(batch, is_train=False)
-            s1 = s1.detach().cpu().numpy()
-            s2 = s2.detach().cpu().numpy()
-
-            for s1_i, s2_i in zip(s1, s2):
-                r = []
-                for i, s1_i_i in enumerate(s1_i):
-                    if s1_i_i >= test_value:
-                        for j, s2_i_j in enumerate(s2_i[i:]):
-                            if s2_i_j >= test_value:
-                                r.append([i, i+j+1])
-                                break
-                R.append(r)
-
-            # for s1_i, s2_i in zip(s1, s2):
-            #     r = []
-            #     index = -1
-            #     for i in range(len(s1_i)):
-            #         if s1_i[i] >= test_value:
-            #             for j in range(i, len(s1_i)):
-            #                 if s2_i[j] >= test_value:
-            #                     r.append([i, j+1])
-            #                     index = j+1
-            #                     break
-            #         if i < index:
-            #             continue
-            #     R.append(r)
+            sbjs = model(batch, is_train=False)
+            # R += sbjs
+            for sbj in sbjs:
+                tmp = []
+                if sum(sbj) == 0:
+                    tmp.append((0, 0, 0))
+                else:
+                    index = -9
+                    for i in range(len(sbj)):
+                        if i <= index:
+                            continue
+                        if sbj[i] != 0:
+                            index_s = i
+                            for j in range(len(sbj[i:])):
+                                if sbj[i:][j] == 0:
+                                    index_e = i + j - 1
+                                    break
+                                if j == len(sbj[i:]) - 1:
+                                    index_e = len(sbj) - 1
+                            tmp.append((index_s, index_e, sbj[i]))
+                            index = index_e
+                R.append(tmp)
         else:
             r = model(batch, is_train=False, test_value=test_value)
             R.append(r)
+    # nums = 0
+    # all_nums = 0
+    # for r in R:
+    #     if sum(r) == 0:
+    #         nums += 1
+    #     all_nums += 1
+    # print(nums)
+    # print(all_nums)
+    # print(nums/all_nums)
 
     if flag == 'val' and is_sbj:
         text_lists, _, result = loader.gen_test_data('../data/dev_data.json', get_answer=True, is_sbj=True)
@@ -86,7 +91,11 @@ def test(flag='val', is_sbj=True, test_value=0.5, config=None):
         for i in range(len(text_lists)):
             t = result[i]
             text = text_lists[i]
-            r = set([''.join(text[r_i[0]: r_i[1]]) for r_i in R[i]])
+            r = set([''.join(text[r_i[0]: r_i[1]+1]) for r_i in R[i]])
+            if r != t:
+                print(t)
+                print(r)
+                print('')
             A += len(r & t)
             B += len(r)
             C += len(t)
@@ -361,9 +370,9 @@ if __name__ == '__main__':
         print('best_i:%.2f, best_f1:%.4f, best_p:%.4f, best_r:%.4f' % (best_i, best_f1, best_p, best_r))
 
     # sbj
-    if False:
+    if True:
         config = config_sbj.config
-        config.model_path = 'model_sbj_single_2'
+        config.model_path = 'model_sbj_single'
         test(flag='val', is_sbj=True, test_value=0.5, config=config)
 
     # spo
@@ -380,7 +389,7 @@ if __name__ == '__main__':
         test_ensemble(flag='val', is_sbj=True, test_value=0.5, config=config, model_paths=model_paths)
 
     # 集成：spo
-    if True:
+    if False:
         config = config_spo.config
         config.model_path_sbj = 'model_sbj_0'
         model_paths = ['model_spo_single_1', 'model_spo_single_2']

@@ -10,24 +10,69 @@ from torch.utils.data import Dataset, DataLoader
 import torch
 
 
+# type_dict
+def get_type_dict_sbj():
+    sbj_dict = {
+        '书籍': '书籍',
+        '图书作品': '书籍',
+        '网络小说': '书籍',
+        '企业': '机构',
+        '机构': '机构',
+        '学科专业': '学科专业',
+        '历史人物': '人物',
+        '人物': '人物',
+        '地点': '地点',
+        '景点': '景点',
+        '国家': '国家',
+        '行政区': '行政区',
+        '生物': '生物',
+        '歌曲': '歌曲',
+        '电视综艺': '电视综艺',
+        '影视作品': '影视作品'
+    }
+    return sbj_dict
+
+
 def get_dict_schemas():
-    schemas = []
+    sbj_dict = get_type_dict_sbj()
+    sbjs = set()
+    p_objs = set()
     with open('../data/all_50_schemas') as f:
         for line in f:
             tmp = json.loads(line)
-            schemas.append(tmp['predicate'])
-    schemas = set(schemas)
-    s2i = {}
-    i2s = {}
+            sbjs.add(sbj_dict[tmp['subject_type']])
+            p_objs.add(tmp['predicate'])
+
+    # sbj字典
+    sbj2i = {}
+    i2sbj = {}
     counts = 1
-    for schema in schemas:
-        s2i[schema] = counts
-        i2s[counts] = schema
+    for sbj in sbjs:
+        sbj2i[sbj] = counts
+        i2sbj[counts] = sbj
         counts += 1
-    print(f's2i_num:{len(schemas)}')
-    schemes_dict = {'s2i': s2i, 'i2s': i2s}
-    with open('../data/schemas.pkl', 'wb') as f:
-        pickle.dump(schemes_dict, f)
+        i2sbj[counts] = sbj
+        counts += 1
+        i2sbj[counts] = sbj
+        counts += 1
+
+    print(f'sbj2i_num:{len(sbj2i)}')
+    sbj_dict = {'sbj2i': sbj2i, 'i2sbj': i2sbj}
+    with open('../data/sbj_dict.pkl', 'wb') as f:
+        pickle.dump(sbj_dict, f)
+
+    # p_obj字典
+    p2i = {}
+    i2p = {}
+    counts = 1
+    for p_obj in p_objs:
+        p2i[p_obj] = counts
+        i2p[counts] = p_obj
+        counts += 1
+    print(f'p2i_num:{len(p2i)}')
+    p_dict = {'p2i': p2i, 'i2p': i2p}
+    with open('../data/p_dict.pkl', 'wb') as f:
+        pickle.dump(p_dict, f)
 
 
 def build_vocab_embedding():
@@ -38,8 +83,6 @@ def build_vocab_embedding():
         with open(data, 'r') as f:
             for line in f:
                 tmp = json.loads(line)
-                # words = [item['word'] for item in tmp['postag']]
-                # words = jieba.lcut(tmp['text'], HMM=False)
                 words, tags = list(zip(*posseg.lcut(tmp['text'], HMM=False)))
                 word_list += list(words)
                 tag_list += list(tags)
@@ -136,134 +179,169 @@ def padding(index_lists, max_len=0):
 
 
 def gen_train_data_sbj(file_path):
-    data = []
+    sbj_dict = get_type_dict_sbj()
+    texts = []
+    text_lists = []
+    tag_lists = []
+    spo_lists = []
     with open(file_path, 'r') as f:
         for line in f:
             tmp = json.loads(line)
-            data.append({
-                'text': tmp['text'],
-                'spo_list': [(spo['subject'], spo['predicate'], spo['object']) for spo in tmp['spo_list']]
-            })
+            texts.append(tmp['text'])
+            text_list, tag_list = list(zip(*posseg.lcut(tmp['text'], HMM=False)))
+            text_list = list(text_list)
+            tag_list = list(tag_list)
+            text_lists.append(text_list)
+            tag_lists.append(tag_list)
+            spo_lists.append(tmp['spo_list'])
 
-    texts = []
-    tags = []
-    sbj_starts = []
-    sbj_ends = []
-    for d in data:
-        text = d['text']
-        text_list, tag_list = list(zip(*posseg.lcut(text, HMM=False)))
+    with open('../data/sbj_dict.pkl', 'rb') as f:
+        sbj2i = pickle.load(f)['sbj2i']
+
+    r_text_lists = []
+    r_tag_lists = []
+    r_sbjs = []
+    nums = 0
+    for text_list, tag_list, spo_list in zip(text_lists, tag_lists, spo_lists):
         text_len = len(text_list)
-        sbj_start = np.zeros(text_len).tolist()
-        sbj_end = np.zeros(text_len).tolist()
+        sbj = np.zeros(text_len)
 
-        flag = 0
-        for spo in d['spo_list']:
-            sbj_s = -1
-            sbj_e = -1
-            sbj_list, _ = list(zip(*posseg.lcut(spo[0], HMM=False)))
+        spo_extract = set()
+        for spo in spo_list:
+            sbj_list, _ = list(zip(*posseg.lcut(spo['subject'], HMM=False)))
+            sbj_list = list(sbj_list)
             sbj_len = len(sbj_list)
             for i in range(0, text_len-sbj_len+1):
                 if text_list[i: i+sbj_len] == sbj_list:
                     sbj_s = i
                     sbj_e = i + sbj_len - 1
-                    break
-            if sbj_s != -1 and sbj_e != -1:
-                sbj_start[sbj_s] = 1
-                sbj_end[sbj_e] = 1
-                flag = 1
+                    xxx = sbj_dict[spo['subject_type']]
+                    if sbj_s == sbj_e:
+                        sbj[sbj_s] = sbj2i[xxx]
+                    elif sbj_e - sbj_s == 1:
+                        sbj[sbj_s] = sbj2i[xxx]
+                        sbj[sbj_e] = sbj2i[xxx] + 2
+                    elif sbj_e - sbj_s > 1:
+                        sbj[sbj_s] = sbj2i[xxx]
+                        sbj[sbj_s+1: sbj_e] = sbj2i[xxx] + 1
+                        sbj[sbj_e] = sbj2i[xxx] + 2
+                    else:
+                        print('wrong')
+                        assert 1 == -1
+                    spo_extract.add(spo['subject'])
+        nums += len(spo_extract)
+        if len(spo_extract) != 0:
+            r_text_lists.append(text_list)
+            r_tag_lists.append(tag_list)
+            r_sbjs.append(sbj.tolist())
 
-        if flag:
-            texts.append(text_list)
-            tags.append(tag_list)
-            sbj_starts.append(sbj_start)
-            sbj_ends.append(sbj_end)
-
-    spo_lists = [d['spo_list'] for d in data]
     all_nums = 0
     for spo_list in spo_lists:
-        all_nums += len(set([spo[0] for spo in spo_list]))
+        all_nums += len(set([spo['subject'] for spo in spo_list]))
 
-    sample_nums = 0
-    for sbj_start in sbj_starts:
-        sample_nums += sum(sbj_start)
+    print('sbj, make samples_num:%d, sbj_nums:%d/%d, radio:%.4f' % (len(r_text_lists), nums, all_nums, nums/all_nums))
 
-    print('sbj, make samples, nums:%d/%d, radio:%.4f' % (sample_nums, all_nums, sample_nums/all_nums))
-
-    return texts, tags, sbj_starts, sbj_ends
+    return r_text_lists, r_tag_lists, r_sbjs
 
 
 def gen_train_data_spo(file_path):
-    data = []
+    sbj_dict = get_type_dict_sbj()
+    texts = []
+    text_lists = []
+    tag_lists = []
+    spo_lists = []
     with open(file_path, 'r') as f:
         for line in f:
             tmp = json.loads(line)
-            data.append({
-                'text': tmp['text'],
-                'spo_list': [(spo['subject'], spo['predicate'], spo['object']) for spo in tmp['spo_list']]
-            })
-    with open('../data/schemas.pkl', 'rb') as f:
-        s2i = pickle.load(f)['s2i']
-    texts = []
-    tags = []
-    sbj_starts = []
-    sbj_ends = []
-    sbj_bounds = []
-    obj_starts = []
-    obj_ends = []
-    sbj_nums = 0
-    for d in data:
-        sbj_num = len(set([spo[0] for spo in d['spo_list']]))
-        sbj_nums += sbj_num
-        text = d['text']
-        text_list, tag_list = list(zip(*posseg.lcut(text, HMM=False)))
+            texts.append(tmp['text'])
+            text_list, tag_list = list(zip(*posseg.lcut(tmp['text'], HMM=False)))
+            text_list = list(text_list)
+            tag_list = list(tag_list)
+            text_lists.append(text_list)
+            tag_lists.append(tag_list)
+            spo_lists.append(tmp['spo_list'])
+
+    with open('../data/sbj_dict.pkl', 'rb') as f:
+        sbj2i = pickle.load(f)['sbj2i']
+    with open('../data/p_dict.pkl', 'rb') as f:
+        p2i = pickle.load(f)['p2i']
+
+    r_text_lists = []
+    r_tag_lists = []
+    r_sbjs = []
+    r_sbj_bounds = []
+    r_obj_starts = []
+    r_obj_ends = []
+    for text_list, tag_list, spo_list in zip(text_lists, tag_lists, spo_lists):
         text_len = len(text_list)
-        sbj_start = np.zeros(text_len).tolist()
-        sbj_end = np.zeros(text_len).tolist()
+        sbj = np.zeros(text_len)
         sbj_bound = {}
         obj_start = {}
         obj_end = {}
-        for spo in d['spo_list']:
-            sbj_s = -1
-            sbj_e = -1
-            sbj_list, _ = list(zip(*posseg.lcut(spo[0], HMM=False)))
+        for spo in spo_list:
+            sbj_list, _ = list(zip(*posseg.lcut(spo['subject'], HMM=False)))
+            sbj_list = list(sbj_list)
             sbj_len = len(sbj_list)
+            sbj_tmp = []
             for i in range(0, text_len-sbj_len+1):
                 if text_list[i: i+sbj_len] == sbj_list:
                     sbj_s = i
                     sbj_e = i + sbj_len - 1
-                    break
+                    sbj_tmp.append([sbj_s, sbj_e])
+                    xxx = sbj_dict[spo['subject_type']]
+                    if sbj_s == sbj_e:
+                        sbj[sbj_s] = sbj2i[xxx]
+                    elif sbj_e - sbj_s == 1:
+                        sbj[sbj_s] = sbj2i[xxx]
+                        sbj[sbj_e] = sbj2i[xxx] + 2
+                    elif sbj_e - sbj_s > 1:
+                        sbj[sbj_s] = sbj2i[xxx]
+                        sbj[sbj_s+1: sbj_e] = sbj2i[xxx] + 1
+                        sbj[sbj_e] = sbj2i[xxx] + 2
+                    else:
+                        print('wrong')
+                        assert 1 == -1
 
-            obj_s = -1
-            obj_e = -1
-            obj_list, _ = list(zip(*posseg.lcut(spo[2], HMM=False)))
+            obj_list, _ = list(zip(*posseg.lcut(spo['object'], HMM=False)))
+            obj_list = list(obj_list)
             obj_len = len(obj_list)
+            obj_start_tmp = np.zeros(text_len)
+            obj_end_tmp = np.zeros(text_len)
             for i in range(0, text_len-obj_len+1):
                 if text_list[i: i+obj_len] == obj_list:
                     obj_s = i
                     obj_e = i + obj_len - 1
-                    break
+                    obj_start_tmp[obj_s] = p2i[spo['predicate']]
+                    obj_end_tmp[obj_e] = p2i[spo['predicate']]
 
-            if sbj_s != -1 and sbj_e != -1 and obj_s != -1 and obj_e != -1:
-                sbj_start[sbj_s] = 1
-                sbj_end[sbj_e] = 1
-                sbj_bound[spo[0]] = [sbj_s, sbj_e]
-                if spo[0] not in obj_start:
-                    obj_start[spo[0]] = np.zeros(text_len).tolist()
-                    obj_end[spo[0]] = np.zeros(text_len).tolist()
-                obj_start[spo[0]][obj_s] = s2i[spo[1]]
-                obj_end[spo[0]][obj_e] = s2i[spo[1]]
+            if len(sbj_tmp) != 0 and obj_start_tmp.sum() != 0:
+                if spo['subject'] in sbj_bound:
+                    sbj_bound[spo['subject']] += sbj_tmp
+                    obj_start[spo['subject']] += obj_start_tmp
+                    obj_end[spo['subject']] += obj_end_tmp
+                else:
+                    sbj_bound[spo['subject']] = sbj_tmp
+                    obj_start[spo['subject']] = obj_start_tmp
+                    obj_end[spo['subject']] = obj_end_tmp
 
-        for sbj, sbj_index in sbj_bound.items():
-            texts.append(text_list)
-            tags.append(tag_list)
-            sbj_starts.append(sbj_start)
-            sbj_ends.append(sbj_end)
-            sbj_bounds.append(sbj_index)
-            obj_starts.append(obj_start[sbj])
-            obj_ends.append(obj_end[sbj])
+        for sbj_i, sbj_index in sbj_bound.items():
+            r_text_lists.append(text_list)
+            r_tag_lists.append(tag_list)
+            r_sbjs.append(sbj.tolist())
+            if len(sbj_index) == 1:
+                r_sbj_bounds.append(sbj_index[0])
+            else:
+                xx = np.random.choice(range(len(sbj_index)))
+                r_sbj_bounds.append(sbj_index[xx])
+            r_obj_starts.append(obj_start[sbj_i].tolist())
+            r_obj_ends.append(obj_end[sbj_i].tolist())
 
-    print('spo make samples, nums:%d/%d, radio:%.4f' % (len(texts), sbj_nums, len(texts)/sbj_nums))
-    return texts, tags, sbj_starts, sbj_ends, sbj_bounds, obj_starts, obj_ends
+    sbj_nums = 0
+    for spo_list in spo_lists:
+        sbj_nums += len(set([spo['subject'] for spo in spo_list]))
+    print('spo make samples, nums:%d/%d, radio:%.4f' % (len(r_text_lists), sbj_nums, len(r_text_lists)/sbj_nums))
+
+    return r_text_lists, r_tag_lists, r_sbjs, r_sbj_bounds, r_obj_starts, r_obj_ends
 
 
 def gen_test_data(file_path, get_answer, is_sbj=True):
@@ -295,9 +373,8 @@ class MyDatasetSbj(Dataset):
         super(Dataset, self).__init__()
         self.is_train = is_train
         if is_train:
-            self.texts, self.tags, self.sbj_starts, self.sbj_ends = gen_train_data_sbj(file_path)
-            self.sbj_starts = padding(self.sbj_starts)
-            self.sbj_ends = padding(self.sbj_ends)
+            self.texts, self.tags, self.sbjs = gen_train_data_sbj(file_path)
+            self.sbjs = padding(self.sbjs)
         else:
             self.texts, self.tags, _ = gen_test_data(file_path, False, True)
 
@@ -312,7 +389,7 @@ class MyDatasetSbj(Dataset):
     def __getitem__(self, item):
         if self.is_train:
             return torch.LongTensor(self.texts[item]), torch.LongTensor(self.tags[item]), \
-                    torch.LongTensor(self.sbj_starts[item]), torch.LongTensor(self.sbj_ends[item])
+                    torch.LongTensor(self.sbjs[item])
         else:
             return torch.LongTensor(self.texts[item]), torch.LongTensor(self.tags[item])
 
@@ -322,10 +399,9 @@ class MyDatasetSpo(Dataset):
         super(Dataset, self).__init__()
         self.is_train = is_train
         if is_train:
-            self.texts, self.tags, self.sbj_starts, self.sbj_ends, self.sbj_bounds, self.obj_starts, self.obj_ends = \
+            self.texts, self.tags, self.sbjs, self.sbj_bounds, self.obj_starts, self.obj_ends = \
                 gen_train_data_spo(file_path)
-            self.sbj_starts = padding(self.sbj_starts)
-            self.sbj_ends = padding(self.sbj_ends)
+            self.sbjs = padding(self.sbjs)
             self.obj_starts = padding(self.obj_starts)
             self.obj_ends = padding(self.obj_ends)
         else:
@@ -342,9 +418,8 @@ class MyDatasetSpo(Dataset):
     def __getitem__(self, item):
         if self.is_train:
             return torch.LongTensor(self.texts[item]), torch.LongTensor(self.tags[item]),\
-                   torch.LongTensor(self.sbj_starts[item]), torch.LongTensor(self.sbj_ends[item]),\
-                   torch.LongTensor(self.sbj_bounds[item]), torch.LongTensor(self.obj_starts[item]),\
-                   torch.LongTensor(self.obj_ends[item])
+                   torch.LongTensor(self.sbjs[item]), torch.LongTensor(self.sbj_bounds[item]),\
+                   torch.LongTensor(self.obj_starts[item]), torch.LongTensor(self.obj_ends[item])
         else:
             return torch.LongTensor(self.texts[item]), torch.LongTensor(self.tags[item])
 
