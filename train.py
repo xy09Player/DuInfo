@@ -8,13 +8,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 import torch
 from torch.optim import Adam
-from config import config_sbj
-from config import config_spo
-from modules.model_sbj import ModelSbj
-from modules.model_spo import ModelSpo
+from config import config_ner
+from config import config_p
+from modules.model_ner import ModelNer
+from modules.model_p import ModelP
 
 
-def train(is_sbj, config):
+def train(task, config):
     time_start = time.time()
     embedding = np.load('../data/embedding.pkl.npy')
     train_loader = loader.build_loader(
@@ -23,7 +23,7 @@ def train(is_sbj, config):
         shuffle=True,
         drop_last=True,
         is_train=True,
-        is_sbj=is_sbj
+        task=task
     )
     val_loader = loader.build_loader(
         file_path=config.val_path,
@@ -31,7 +31,7 @@ def train(is_sbj, config):
         shuffle=False,
         drop_last=False,
         is_train=True,
-        is_sbj=is_sbj
+        task=task
     )
     param = {
         'embedding': embedding,
@@ -40,7 +40,8 @@ def train(is_sbj, config):
         'dropout_p': config.dropout_p,
         'encoder_dropout_p': 0.1,
         'encoder_layer_num': config.encoder_layer_num,
-        'model_path_sbj': config.model_path_sbj if config.name in ['ModelSpo'] else 'xxx'
+        'model_path_sbj': config.model_path_sbj if task == 'p' else 'xxx',
+        'model_path_obj': config.model_path_obj if task == 'p' else 'xxx'
     }
     model = eval(config.name)(param)
     model.cuda()
@@ -137,46 +138,42 @@ def train(is_sbj, config):
 
 
 if __name__ == '__main__':
-    # sbj
+    # ner: sbj
     if False:
-        config = config_sbj.config
-        config.model_path = 'model_sbj_single'
-        train(is_sbj=True, config=config)
+        config = config_ner.config
+        config.model_path = 'model_sbj_single_1'
+        train(task='sbj', config=config)
+
+    # ner: obj
+    if False:
+        config = config_ner.config
+        config.model_path = 'model_obj_single_1'
+        train(task='obj', config=config)
 
     # spo
     if True:
-        config = config_spo.config
-        config.model_path = 'model_spo_single'
+        config = config_p.config
+        config.model_path = 'model_p_single'
         config.model_path_sbj = 'model_sbj_single'
-        train(is_sbj=False, config=config)
-
-    # sbj + spo
-    if False:
-        config = config_sbj.config
-        config.model_path = 'model_sbj_single_3'
-        train(is_sbj=True, config=config)
-
-        config = config_spo.config
-        config.model_path = 'model_spo_single_3'
-        config.model_path_sbj = 'model_sbj_single_3'
-        train(is_sbj=False, config=config)
+        config.model_path_obj = 'model_obj_single'
+        train(task='p', config=config)
 
     # 10-fold 集成
     if False:
         for i in range(10):
             print(f'{i}-th, training....')
-            config = config_sbj.config
+            config = config_ner.config
             config.train_path = '../data/' + str(i) + '_train_data.json'
             config.val_path = '../data/' + str(i) + '_val_data.json'
             config.model_path = 'model_sbj_' + str(i)
-            train(is_sbj=True, config=config)
+            train(task=True, config=config)
 
-            config = config_spo.config
+            config = config_p.config
             config.train_path = '../data/' + str(i) + '_train_data.json'
             config.val_path = '../data/' + str(i) + '_val_data.json'
             config.model_path = 'model_spo_' + str(i)
             config.model_path_sbj = 'model_sbj_' + str(i)
-            train(is_sbj=False, config=config)
+            train(task=False, config=config)
             print('\n')
 
 
