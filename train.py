@@ -139,15 +139,15 @@ def train(task, config):
 
 if __name__ == '__main__':
     # ner: sbj
-    if False:
+    if True:
         config = config_ner.config
-        config.model_path = 'model_sbj_single_1'
+        config.model_path = 'model_sbj_single'
         train(task='sbj', config=config)
 
     # ner: obj
-    if False:
+    if True:
         config = config_ner.config
-        config.model_path = 'model_obj_single_1'
+        config.model_path = 'model_obj_single'
         train(task='obj', config=config)
 
     # spo

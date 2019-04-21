@@ -348,16 +348,16 @@ if __name__ == '__main__':
     # ner
     if False:
         config = config_ner.config
-        config.model_path = 'model_obj_single_1'
+        config.model_path = 'model_obj_single'
         test(flag='val', task='obj', test_value=0.5, config=config)
 
-    # spo
+    # p
     if True:
         config = config_p.config
-        config.model_path = 'model_p_single_1'
-        config.model_path_sbj = 'model_sbj_single_1'
-        config.model_path_obj = 'model_obj_single_1'
-        test(flag='test', task='p', test_value=0.5, config=config)
+        config.model_path = 'model_p_single'
+        config.model_path_sbj = 'model_sbj_single'
+        config.model_path_obj = 'model_obj_single'
+        test(flag='val', task='p', test_value=0.6, config=config)
 
     # # 集成: sbj
     # if False:

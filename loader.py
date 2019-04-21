@@ -5,9 +5,16 @@ import numpy as np
 import json
 import gensim
 import pickle
+import jieba
 from jieba import posseg
 from torch.utils.data import Dataset, DataLoader
 import torch
+
+
+with open('../data/jieba_vocab.pkl', 'rb') as f:
+    xxx = pickle.load(f)
+for x in xxx:
+    jieba.del_word(x)
 
 
 def get_dict_schemas():
@@ -205,15 +212,9 @@ def gen_train_data_ner(file_path, task):
             spo_lists.append(tmp['spo_list'])
 
     if task == 'sbj':
-        with open('../data/sbj_dict.pkl', 'rb') as f:
-            ner2i = pickle.load(f)['sbj2i']
         ner1 = 'subject'
-        ner1_type = 'subject_type'
     elif task == 'obj':
-        with open('../data/obj_dict.pkl', 'rb') as f:
-            ner2i = pickle.load(f)['obj2i']
         ner1 = 'object'
-        ner1_type = 'object_type'
     else:
         assert 1 == -1
 
@@ -226,27 +227,39 @@ def gen_train_data_ner(file_path, task):
         ner = np.zeros(text_len)
 
         spo_extract = set()
-        for spo in spo_list:
-            ner_list, _ = list(zip(*posseg.lcut(spo[ner1], HMM=False)))
+        ner_set = set([spo[ner1] for spo in spo_list])
+        ner_set = np.array(list(ner_set))
+        np.random.shuffle(ner_set)
+        for ner_i in ner_set:
+            ner_list, _ = list(zip(*posseg.lcut(ner_i, HMM=False)))
             ner_list = list(ner_list)
             ner_len = len(ner_list)
             for i in range(0, text_len-ner_len+1):
                 if text_list[i: i+ner_len] == ner_list:
                     ner_s = i
                     ner_e = i + ner_len - 1
+                    flag = False
+                    for item in [1, 2, 3, 4]:
+                        if item in ner[ner_s: ner_e+1]:
+                            flag = True
+                            break
+                    if flag:
+                        continue
+
                     if ner_s == ner_e:
-                        ner[ner_s] = ner2i[spo[ner1_type]]
+                        ner[ner_s] = 4
                     elif ner_e - ner_s == 1:
-                        ner[ner_s] = ner2i[spo[ner1_type]]
-                        ner[ner_e] = ner2i[spo[ner1_type]] + 2
+                        ner[ner_s] = 1
+                        ner[ner_e] = 3
                     elif ner_e - ner_s > 1:
-                        ner[ner_s] = ner2i[spo[ner1_type]]
-                        ner[ner_s+1: ner_e] = ner2i[spo[ner1_type]] + 1
-                        ner[ner_e] = ner2i[spo[ner1_type]] + 2
+                        ner[ner_s] = 1
+                        ner[ner_s+1: ner_e] = 2
+                        ner[ner_e] = 3
                     else:
                         print('wrong')
                         assert 1 == -1
-                    spo_extract.add(spo[ner1])
+                    spo_extract.add(ner_i)
+
         nums += len(spo_extract)
         if len(spo_extract) != 0:
             r_text_lists.append(text_list)
@@ -283,10 +296,6 @@ def gen_train_data_p(file_path):
             # if nums == 1000:
             #     break
 
-    with open('../data/sbj_dict.pkl', 'rb') as f:
-        sbj2i = pickle.load(f)['sbj2i']
-    with open('../data/obj_dict.pkl', 'rb') as f:
-        obj2i = pickle.load(f)['obj2i']
     with open('../data/p_dict.pkl', 'rb') as f:
         p2i = pickle.load(f)['p2i']
 
@@ -316,14 +325,14 @@ def gen_train_data_p(file_path):
                     sbj_s = i
                     sbj_e = i + sbj_len - 1
                     if sbj_s == sbj_e:
-                        sbj[sbj_s] = sbj2i[spo['subject_type']]
+                        sbj[sbj_s] = 4
                     elif sbj_e - sbj_s == 1:
-                        sbj[sbj_s] = sbj2i[spo['subject_type']]
-                        sbj[sbj_e] = sbj2i[spo['subject_type']] + 2
+                        sbj[sbj_s] = 1
+                        sbj[sbj_e] = 3
                     elif sbj_e - sbj_s > 1:
-                        sbj[sbj_s] = sbj2i[spo['subject_type']]
-                        sbj[sbj_s+1: sbj_e] = sbj2i[spo['subject_type']] + 1
-                        sbj[sbj_e] = sbj2i[spo['subject_type']] + 2
+                        sbj[sbj_s] = 1
+                        sbj[sbj_s+1: sbj_e] = 2
+                        sbj[sbj_e] = 3
                     else:
                         print('wrong')
                         assert 1 == -1
@@ -341,14 +350,14 @@ def gen_train_data_p(file_path):
                     obj_s = i
                     obj_e = i + obj_len - 1
                     if obj_s == obj_e:
-                        obj[obj_s] = obj2i[spo['object_type']]
+                        obj[obj_s] = 4
                     elif obj_e - obj_s == 1:
-                        obj[obj_s] = obj2i[spo['object_type']]
-                        obj[obj_e] = obj2i[spo['object_type']] + 2
+                        obj[obj_s] = 1
+                        obj[obj_e] = 3
                     elif obj_e - obj_s > 1:
-                        obj[obj_s] = obj2i[spo['object_type']]
-                        obj[obj_s+1: obj_e] = obj2i[spo['object_type']] + 1
-                        obj[obj_e] = obj2i[spo['object_type']] + 2
+                        obj[obj_s] = 1
+                        obj[obj_s+1: obj_e] = 2
+                        obj[obj_e] = 3
                     else:
                         print('wrong')
                         assert 1 == -1
