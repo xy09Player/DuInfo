@@ -7,6 +7,7 @@ from modules import embedding, encoder
 from modules.noise import GaussianNoise
 import torch.nn.functional as F
 from torchcrf import CRF
+import pickle
 
 
 class ModelNer(nn.Module):
@@ -19,7 +20,10 @@ class ModelNer(nn.Module):
         self.encoder_dropout_p = param['encoder_dropout_p']
         self.encoder_layer_num = param['encoder_layer_num']
         self.is_bn = False
-        self.embedding = embedding.Embedding(param['embedding'])
+
+        with open('../data/char_dict.pkl', 'rb') as f:
+            char2i = pickle.load(f)['char2i']
+        self.embedding = nn.Embedding(num_embeddings=len(char2i), embedding_dim=256, padding_idx=0)
 
         self.embedding_tag = nn.Embedding(
             num_embeddings=100,
@@ -31,7 +35,7 @@ class ModelNer(nn.Module):
         # 语义编码
         self.encoder = encoder.Rnn(
             mode=self.mode,
-            input_size=300,
+            input_size=256,
             hidden_size=self.hidden_size,
             dropout_p=self.encoder_dropout_p,
             bidirectional=True,
@@ -40,10 +44,10 @@ class ModelNer(nn.Module):
         )
 
         # ner位置映射
-        self.ner = nn.Linear(self.hidden_size*2, 5)
+        self.ner = nn.Linear(self.hidden_size*2, 49)
 
         # crf
-        self.crf = CRF(num_tags=5)
+        self.crf = CRF(num_tags=49)
 
         self.reset_parameters()
 
@@ -55,18 +59,18 @@ class ModelNer(nn.Module):
 
     def forward(self, batch, is_train=True):
         if is_train:
-            text, tag, ner = batch
+            text, ner = batch
 
             # 语义编码
             text_mask = torch.ne(text, 0)
             max_len = text_mask.sum(dim=1).max().item()
             text_mask = text_mask[:, :max_len]
             text = text[:, :max_len]
-            text_emb = self.embedding(text)
+            text_emb = self.embedding(text).transpose(0, 1)
             text_vec = self.encoder(text_emb, text_mask)
 
             # rnn_feat
-            ner_feat = self.ner(text_vec)  # (seq_len, b, 5)
+            ner_feat = self.ner(text_vec)  # (seq_len, b, 49)
             ner = ner[:, :max_len].transpose(0, 1)  # (seq_len, b)
             text_mask = text_mask.transpose(0, 1)  # (seq_len, b)
 
@@ -74,18 +78,18 @@ class ModelNer(nn.Module):
 
             return loss
         else:
-            text, tag = batch
+            text, _ = batch
 
             # 语义编码
             text_mask = torch.ne(text, 0)
             max_len = text_mask.sum(dim=1).max().item()
             text_mask = text_mask[:, :max_len]
             text = text[:, :max_len]
-            text_emb = self.embedding(text)
+            text_emb = self.embedding(text).transpose(0, 1)
             text_vec = self.encoder(text_emb, text_mask)
 
             # rnn_feat
-            ner_feat = self.ner(text_vec)  # (seq_len, b, 5)
+            ner_feat = self.ner(text_vec)  # (seq_len, b, 49)
             text_mask = text_mask.transpose(0, 1)  # (seq_len, b)
 
             # decoder

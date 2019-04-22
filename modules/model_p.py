@@ -18,7 +18,6 @@ class ModelP(nn.Module):
         self.encoder_dropout_p = param['encoder_dropout_p']
         self.encoder_layer_num = param['encoder_layer_num']
         self.is_bn = False
-        self.embedding = embedding.Embedding(param['embedding'])
 
         # 载入模型
         model_sbj_ = model_ner.ModelNer(param)
@@ -33,6 +32,10 @@ class ModelP(nn.Module):
         model_obj_.load_state_dict(state['model_state'])
         print('obj, loss:%.4f, epoch:%2d, step:%4d, time:%4d' % (state['loss'], state['epoch'], state['steps'],
                                                                  state['time']))
+
+        # embedding
+        self.embedding_sbj = model_sbj_.embedding
+        self.embedding_obj = model_obj_.embedding
 
         # tag embedding
         self.embedding_tag_sbj = model_sbj_.embedding_tag
@@ -81,7 +84,7 @@ class ModelP(nn.Module):
 
     def forward(self, batch, is_train=True):
         if is_train:
-            text, tag, sbj, obj, sbj_bounds, obj_bounds, ps = batch
+            text, sbj, obj, sbj_bounds, obj_bounds, ps = batch
 
             # 裁剪
             text_mask = torch.ne(text, 0)
@@ -92,11 +95,12 @@ class ModelP(nn.Module):
             obj = obj[:, :max_len]
 
             # embedding
-            text_emb = self.embedding(text)
+            text_emb_sbj = self.embedding_sbj(text).transpose(0, 1)
+            text_emb_obj = self.embedding_obj(text).transpose(0, 1)
 
             # encoder
-            text_vec_sbj = self.encoder_sbj(text_emb, text_mask)
-            text_vec_obj = self.encoder_obj(text_emb, text_mask)
+            text_vec_sbj = self.encoder_sbj(text_emb_sbj, text_mask)
+            text_vec_obj = self.encoder_obj(text_emb_obj, text_mask)
 
             # sbj: nn + crf
             sbj_feat = self.position_sbj(text_vec_sbj)
@@ -141,10 +145,10 @@ class ModelP(nn.Module):
             # loss
             loss = 0.2 * (loss_sbj + loss_obj) + loss_p
 
-            return loss
+            return loss, loss_sbj, loss_obj, loss_p
 
         else:
-            text, tag = batch
+            text, _ = batch
 
             # 裁剪
             text_mask = torch.ne(text, 0)
@@ -153,11 +157,12 @@ class ModelP(nn.Module):
             text = text[:, :max_len]
 
             # embedding
-            text_emb = self.embedding(text)
+            text_emb_sbj = self.embedding_sbj(text).transpose(0, 1)
+            text_emb_obj = self.embedding_obj(text).transpose(0, 1)
 
             # encoder
-            text_vec_sbj = self.encoder_sbj(text_emb, text_mask)
-            text_vec_obj = self.encoder_obj(text_emb, text_mask)
+            text_vec_sbj = self.encoder_sbj(text_emb_sbj, text_mask)
+            text_vec_obj = self.encoder_obj(text_emb_obj, text_mask)
 
             # sbj: nn + crf
             sbj_feat = self.position_sbj(text_vec_sbj)

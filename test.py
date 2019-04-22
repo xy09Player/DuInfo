@@ -26,7 +26,6 @@ def deal_p_r(result_bound, result_vec, test_value):
 
 def test(flag='val', task=None, test_value=0.5, config=None):
     time_start = time.time()
-    embedding = np.load('../data/embedding.pkl.npy')
     data_loader = loader.build_loader(
         file_path='../data/dev_data.json' if flag == 'val' else '../data/test1_data_postag.json',
         batch_size=config.test_batch_size,
@@ -36,7 +35,6 @@ def test(flag='val', task=None, test_value=0.5, config=None):
         task=task
     )
     param = {
-        'embedding': embedding,
         'mode': config.mode,
         'hidden_size': config.hidden_size,
         'dropout_p': config.dropout_p,
@@ -89,7 +87,7 @@ def test(flag='val', task=None, test_value=0.5, config=None):
             R_vec += r_vec
 
     if flag == 'val' and task != 'p':
-        text_lists, _, result = loader.gen_test_data('../data/dev_data.json', get_answer=True, task=task)
+        text_lists, result = loader.gen_test_data('../data/dev_data.json', get_answer=True, task=task)
         A, B, C = 1e-10, 1e-10, 1e-10
         for i in range(len(text_lists)):
             t = result[i]
@@ -108,7 +106,7 @@ def test(flag='val', task=None, test_value=0.5, config=None):
         print('%s model, f1:%.4f, precision:%.4f, recall:%.4f\n' % (task, f1, precision, recall))
 
     if flag == 'val' and task == 'p':
-        text_lists, _, result = loader.gen_test_data('../data/dev_data.json', get_answer=True, task=task)
+        text_lists, result = loader.gen_test_data('../data/dev_data.json', get_answer=True, task=task)
         A, B, C = 1e-10, 1e-10, 1e-10
         for i in range(len(text_lists)):
             t = set(result[i])
@@ -136,6 +134,11 @@ def test(flag='val', task=None, test_value=0.5, config=None):
                     if r_i[1] == '丈夫':
                         r_tmp.add((r_i[2], '妻子', r_i[0]))
                 r = r_tmp
+
+            if r != t:
+                print(t)
+                print(r)
+                print('')
 
             A += len(r & t)
             B += len(r)
@@ -354,10 +357,10 @@ if __name__ == '__main__':
     # p
     if True:
         config = config_p.config
-        config.model_path = 'model_p_single'
+        config.model_path = 'model_p_single_test'
         config.model_path_sbj = 'model_sbj_single'
         config.model_path_obj = 'model_obj_single'
-        test(flag='val', task='p', test_value=0.6, config=config)
+        test(flag='val', task='p', test_value=0.5, config=config)
 
     # # 集成: sbj
     # if False:
