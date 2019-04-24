@@ -44,16 +44,15 @@ class ModelNer(nn.Module):
         )
 
         # ner位置映射
-        self.ner = nn.Linear(self.hidden_size*2, 49)
+        self.ner = nn.Linear(self.hidden_size*2, 5)
 
         # crf
-        self.crf = CRF(num_tags=49)
+        self.crf = CRF(num_tags=5)
 
         self.reset_parameters()
 
     def reset_parameters(self):
         torch.nn.init.xavier_uniform_(self.ner.weight)
-        torch.nn.init.xavier_uniform_(self.embedding_tag.weight)
 
         torch.nn.init.constant_(self.ner.bias, 0.0)
 
@@ -70,7 +69,7 @@ class ModelNer(nn.Module):
             text_vec = self.encoder(text_emb, text_mask)
 
             # rnn_feat
-            ner_feat = self.ner(text_vec)  # (seq_len, b, 49)
+            ner_feat = self.ner(text_vec)  # (seq_len, b, 5)
             ner = ner[:, :max_len].transpose(0, 1)  # (seq_len, b)
             text_mask = text_mask.transpose(0, 1)  # (seq_len, b)
 
@@ -89,7 +88,7 @@ class ModelNer(nn.Module):
             text_vec = self.encoder(text_emb, text_mask)
 
             # rnn_feat
-            ner_feat = self.ner(text_vec)  # (seq_len, b, 49)
+            ner_feat = self.ner(text_vec)  # (seq_len, b, 5)
             text_mask = text_mask.transpose(0, 1)  # (seq_len, b)
 
             # decoder
