@@ -138,38 +138,16 @@ def train(task, config):
 
 
 if __name__ == '__main__':
-    # ner: sbj
+    # ner
     if False:
         config = config_ner.config
-        config.model_path = 'model_sbj_5'
-        train(task='sbj', config=config)
-
-    # ner: obj
-    if False:
-        config = config_ner.config
-        config.model_path = 'model_obj_5'
-        train(task='obj', config=config)
+        for xx in range(1, 2):
+            config.model_path = 'model_ner_' + str(xx)
+        train(task='ner', config=config)
 
     # spo
-    if False:
+    if True:
         config = config_p.config
-        for xx in range(1, 6):
+        for xx in range(1, 2):
             config.model_path = 'model_p_' + str(xx)
             train(task='p', config=config)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

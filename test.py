@@ -52,11 +52,8 @@ def test(config, data_type, model_paths, test_value):
     with open('../data/p_dict.pkl', 'rb') as f:
         i2p = pickle.load(f)['i2p']
 
-    with open('../data/sbj_val.pkl', 'rb') as f:
-        sbj_val = pickle.load(f)
-
-    with open('../data/obj_val.pkl', 'rb') as f:
-        obj_val = pickle.load(f)
+    with open('../data/val_ner.pkl', 'rb') as f:
+        ner_val = pickle.load(f)
 
     R_sbj_bounds = [[] for _ in range(len(model_paths))]
     R_obj_bounds = [[] for _ in range(len(model_paths))]
@@ -72,6 +69,7 @@ def test(config, data_type, model_paths, test_value):
                 texts.append(tmp['text'])
                 char_list = loader.split_word(tmp['text'])
                 char_lists.append(char_list)
+
     for ith, model_p in enumerate(model_paths):
         model = eval(config.name)(param)
         model.cuda()
@@ -109,10 +107,8 @@ def test(config, data_type, model_paths, test_value):
                 if r != t:
                     print('spo:', t)
                     print('spo_p:', r)
-                    print('sbj:', set([tt[0] for tt in t]))
-                    print('sbj_p:', sbj_val[i])
-                    print('obj:', set([tt[2] for tt in t]))
-                    print('obj_p:', obj_val[i])
+                    print('ner:', (set([tt[0] for tt in t]) | set([tt[2] for tt in t])))
+                    print('ner_p:', ner_val[i])
                     print('')
 
                 A += len(r & t)
@@ -149,11 +145,6 @@ def test(config, data_type, model_paths, test_value):
                     else:
                         r.add((sbj, p, obj))
                         r.add((obj, p, sbj))
-
-                    # if r != t:
-                    #     print(t)
-                    #     print(r)
-                    #     print('')
 
                 A += len(r & t)
                 B += len(r)
@@ -196,7 +187,7 @@ if __name__ == '__main__':
     # p
     config = config_p.config
     # model_paths = ['model_p_1', 'model_p_2', 'model_p_3', 'model_p_4', 'model_p_5']
-    model_paths = ['model_p_1']
+    model_paths = ['model_p_test']
     test(config, 'val', model_paths, test_value=0.5)
 
 

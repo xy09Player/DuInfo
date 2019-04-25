@@ -45,27 +45,22 @@ def split_word(word):
 
 
 def get_dict_schemas():
-    sbjs = set()
+    ners = set()
     ps = set()
-    objs = set()
     with open('../data/all_50_schemas') as f:
         for line in f:
             tmp = json.loads(line)
-            sbjs.add(tmp['subject_type'])
+            ners.add(tmp['subject_type'])
+            ners.add(tmp['object_type'])
             ps.add(tmp['predicate'])
-            objs.add(tmp['object_type'])
 
-    # sbj字典
-    sbj2i = {}
-    i2sbj = {}
+    # ner字典
+    ner2i = {}
+    i2ner = {}
     counts = 1
-    for sbj in sbjs:
-        sbj2i[sbj] = counts
-        i2sbj[counts] = sbj
-        counts += 1
-        i2sbj[counts] = sbj
-        counts += 1
-        i2sbj[counts] = sbj
+    for ner in ners:
+        ner2i[ner] = counts
+        i2ner[counts] = ner
         counts += 1
 
     # p字典
@@ -77,34 +72,16 @@ def get_dict_schemas():
         i2p[counts] = p
         counts += 1
 
-    # obj字典
-    obj2i = {}
-    i2obj = {}
-    counts = 1
-    for obj in objs:
-        obj2i[obj] = counts
-        i2obj[counts] = obj
-        counts += 1
-        i2obj[counts] = obj
-        counts += 1
-        i2obj[counts] = obj
-        counts += 1
-
     # save
-    print(f'sbj2i_num:{len(sbj2i)}')
-    sbj_dict = {'sbj2i': sbj2i, 'i2sbj': i2sbj}
-    with open('../data/sbj_dict.pkl', 'wb') as f:
-        pickle.dump(sbj_dict, f)
+    print(f'ner2i_num:{len(ner2i)}')
+    ner_dict = {'ner2i': ner2i, 'i2ner': i2ner}
+    with open('../data/ner_dict.pkl', 'wb') as f:
+        pickle.dump(ner_dict, f)
 
     print(f'p2i_num:{len(p2i)}')
     p_dict = {'p2i': p2i, 'i2p': i2p}
     with open('../data/p_dict.pkl', 'wb') as f:
         pickle.dump(p_dict, f)
-
-    print(f'obj2i_num:{len(obj2i)}')
-    obj_dict = {'obj2i': obj2i, 'i2obj': i2obj}
-    with open('../data/obj_dict.pkl', 'wb') as f:
-        pickle.dump(obj_dict, f)
 
 
 def build_vocab_embedding():
@@ -259,7 +236,7 @@ def padding_three_d(tensors):
     return result, max_len
 
 
-def gen_train_data_ner(file_path, task):
+def gen_train_data_ner(file_path):
     texts = []
     char_lists = []
     spo_lists = []
@@ -272,14 +249,6 @@ def gen_train_data_ner(file_path, task):
             char_lists.append(char_list)
             spo_lists.append(tmp['spo_list'])
 
-    if task == 'sbj':
-        ner_name = 'subject'
-
-    elif task == 'obj':
-        ner_name = 'object'
-    else:
-        assert 1 == -1
-
     r_texts = []
     r_char_lists = []
     r_ners = []
@@ -288,7 +257,9 @@ def gen_train_data_ner(file_path, task):
         ner = np.zeros(char_len)
 
         spo_extract = set()
-        ner_set = set([spo[ner_name].lower().strip() for spo in spo_list])
+        sbj_set = set([spo['subject'].lower().strip() for spo in spo_list])
+        obj_set = set([spo['object'].lower().strip() for spo in spo_list])
+        ner_set = sbj_set | obj_set
         ner_set = list(ner_set)
         np.random.shuffle(ner_set)
 
@@ -322,12 +293,12 @@ def gen_train_data_ner(file_path, task):
                         assert 1 == -1
                     spo_extract.add(ner_i)
 
-        if len(spo_extract) == len(ner_set):
+        if len(spo_extract) != 0:
             r_texts.append(text)
             r_char_lists.append(char_list)
             r_ners.append(ner.tolist())
 
-    print('%s, make samples_num:%d/%d, radio:%.4f' % (task, len(r_texts), len(texts), len(r_texts)/len(texts)))
+    print('ner, make samples_num:%d/%d, radio:%.4f' % (len(r_texts), len(texts), len(r_texts)/len(texts)))
 
     return r_char_lists, r_ners
 
@@ -345,19 +316,19 @@ def gen_train_data_p(file_path):
             char_lists.append(char_list)
             spo_lists.append(tmp['spo_list'])
 
-    if file_path == '../data/train_data.json':
-        with open('../data/sbj_train.pkl', 'rb') as f:
-            sbj_gens = pickle.load(f)
-        with open('../data/obj_train.pkl', 'rb') as f:
-            obj_gens = pickle.load(f)
-    elif file_path == '../data/dev_data.json':
-        with open('../data/sbj_val.pkl', 'rb') as f:
-            sbj_gens = pickle.load(f)
-        with open('../data/obj_val.pkl', 'rb') as f:
-            obj_gens = pickle.load(f)
+    # if file_path == '../data/train_data.json':
+    #     with open('../data/sbj_train.pkl', 'rb') as f:
+    #         sbj_gens = pickle.load(f)
+    #     with open('../data/obj_train.pkl', 'rb') as f:
+    #         obj_gens = pickle.load(f)
+    # elif file_path == '../data/dev_data.json':
+    #     with open('../data/sbj_val.pkl', 'rb') as f:
+    #         sbj_gens = pickle.load(f)
+    #     with open('../data/obj_val.pkl', 'rb') as f:
+    #         obj_gens = pickle.load(f)
 
-    assert len(texts) == len(sbj_gens)
-    assert len(texts) == len(obj_gens)
+    # assert len(texts) == len(sbj_gens)
+    # assert len(texts) == len(obj_gens)
 
     with open('../data/p_dict.pkl', 'rb') as f:
         p2i = pickle.load(f)['p2i']
@@ -366,47 +337,27 @@ def gen_train_data_p(file_path):
     r_sbj_bounds = []
     r_obj_bounds = []
     r_ps = []
-    for char_list, spo_list, sbj_gen, obj_gen in zip(char_lists, spo_lists, sbj_gens, obj_gens):
+    for char_list, spo_list in zip(char_lists, spo_lists):
         char_len = len(char_list)
-        sbj_bound_dict = {}
-        obj_bound_dict = {}
-
-        sbj_extract = set()
-        obj_extract = set()
-
+        ner_bound_dict = {}
+        ner_extract = set()
         sbj_set = set([spo['subject'].lower().strip() for spo in spo_list])
-        sbj_set = sbj_set | sbj_gen
-
         obj_set = set([spo['object'].lower().strip() for spo in spo_list])
-        obj_set = obj_set | obj_gen
+        ner_set = sbj_set | obj_set
 
-        # sbj
-        for sbj in sbj_set:
-            sbj_list = split_word(sbj)
-            sbj_len = len(sbj_list)
-            for i in range(0, char_len-sbj_len+1):
-                if char_list[i: i+sbj_len] == sbj_list:
-                    sbj_s = i
-                    sbj_e = i + sbj_len - 1
-                    sbj_extract.add(sbj)
-                    if sbj in sbj_bound_dict:
-                        sbj_bound_dict[sbj].add((sbj_s, sbj_e))
+        # ner
+        for ner in ner_set:
+            ner_list = split_word(ner)
+            ner_len = len(ner_list)
+            for i in range(0, char_len-ner_len+1):
+                if char_list[i: i+ner_len] == ner_list:
+                    ner_s = i
+                    ner_e = i + ner_len - 1
+                    ner_extract.add(ner)
+                    if ner in ner_bound_dict:
+                        ner_bound_dict[ner].add((ner_s, ner_e))
                     else:
-                        sbj_bound_dict[sbj] = set([(sbj_s, sbj_e)])
-
-        # obj
-        for obj in obj_set:
-            obj_list = split_word(obj)
-            obj_len = len(obj_list)
-            for i in range(0, char_len-obj_len+1):
-                if char_list[i: i+obj_len] == obj_list:
-                    obj_s = i
-                    obj_e = i + obj_len - 1
-                    obj_extract.add(obj)
-                    if obj in obj_bound_dict:
-                        obj_bound_dict[obj].add((obj_s, obj_e))
-                    else:
-                        obj_bound_dict[obj] = set([(obj_s, obj_e)])
+                        ner_bound_dict[ner] = set([(ner_s, ner_e)])
 
         # p
         sbj_obj_dict = {}
@@ -419,10 +370,12 @@ def gen_train_data_p(file_path):
         sbj_bounds = []
         obj_bounds = []
         ps = []
-        for s in sbj_extract:
-            for o in obj_extract:
-                s_bound = list(sbj_bound_dict[s])
-                o_bound = list(obj_bound_dict[o])
+        for s in ner_extract:
+            for o in ner_extract:
+                if s == o:
+                    continue
+                s_bound = list(ner_bound_dict[s])
+                o_bound = list(ner_bound_dict[o])
                 p = [0 for _ in range(49)]
                 if (s, o) in sbj_obj_dict:
                     ppp = sbj_obj_dict[(s, o)]
@@ -432,7 +385,7 @@ def gen_train_data_p(file_path):
                 obj_bounds.append(o_bound)
                 ps.append(p)
 
-        if len(sbj_extract) != 0 and len(obj_extract) != 0:
+        if len(ner_extract) > 1:
             r_char_lists.append(char_list)
             r_sbj_bounds.append(sbj_bounds)
             r_obj_bounds.append(obj_bounds)
@@ -455,77 +408,55 @@ def gen_test_data_p(file_path):
             char_lists.append(char_list)
 
     if file_path == '../data/dev_data.json':
-        with open('../data/sbj_val.pkl', 'rb') as f:
-            sbj_gens = pickle.load(f)
-        with open('../data/obj_val.pkl', 'rb') as f:
-            obj_gens = pickle.load(f)
+        with open('../data/val_ner.pkl', 'rb') as f:
+            ner_gens = pickle.load(f)
     elif file_path == '../data/test1_data_postag.json':
-        with open('../data/sbj_test.pkl', 'rb') as f:
-            sbj_gens = pickle.load(f)
-        with open('../data/obj_test.pkl', 'rb') as f:
-            obj_gens = pickle.load(f)
+        with open('../data/test_ner.pkl', 'rb') as f:
+            ner_gens = pickle.load(f)
     else:
         print('wrong file_path')
         assert 1 == -1
 
-    assert len(texts) == len(sbj_gens)
-    assert len(texts) == len(obj_gens)
+    assert len(texts) == len(ner_gens)
 
     r_char_lists = []
     r_sbj_bounds = []
     r_obj_bounds = []
-    for char_list, sbj_gen, obj_gen in zip(char_lists, sbj_gens, obj_gens):
+    for char_list, ner_gen in zip(char_lists, ner_gens):
         char_len = len(char_list)
-        sbj_bound_dict = {}
-        obj_bound_dict = {}
+        ner_bound_dict = {}
+        ner_extract = set()
+        ner_set = ner_gen
 
-        sbj_extract = set()
-        obj_extract = set()
-
-        sbj_set = sbj_gen
-        obj_set = obj_gen
-
-        # sbj
-        for sbj in sbj_set:
-            sbj_list = split_word(sbj)
-            sbj_len = len(sbj_list)
-            for i in range(0, char_len-sbj_len+1):
-                if char_list[i: i+sbj_len] == sbj_list:
-                    sbj_s = i
-                    sbj_e = i + sbj_len - 1
-                    sbj_extract.add(sbj)
-                    if sbj in sbj_bound_dict:
-                        sbj_bound_dict[sbj].add((sbj_s, sbj_e))
+        # ner
+        for ner in ner_set:
+            ner_list = split_word(ner)
+            ner_len = len(ner_list)
+            for i in range(0, char_len-ner_len+1):
+                if char_list[i: i+ner_len] == ner_list:
+                    ner_s = i
+                    ner_e = i + ner_len - 1
+                    ner_extract.add(ner)
+                    if ner in ner_bound_dict:
+                        ner_bound_dict[ner].add((ner_s, ner_e))
                     else:
-                        sbj_bound_dict[sbj] = set([(sbj_s, sbj_e)])
-
-        # obj
-        for obj in obj_set:
-            obj_list = split_word(obj)
-            obj_len = len(obj_list)
-            for i in range(0, char_len-obj_len+1):
-                if char_list[i: i+obj_len] == obj_list:
-                    obj_s = i
-                    obj_e = i + obj_len - 1
-                    obj_extract.add(obj)
-                    if obj in obj_bound_dict:
-                        obj_bound_dict[obj].add((obj_s, obj_e))
-                    else:
-                        obj_bound_dict[obj] = set([(obj_s, obj_e)])
+                        ner_bound_dict[ner] = set([(ner_s, ner_e)])
 
         sbj_bounds = []
         obj_bounds = []
-        for s in sbj_extract:
-            for o in obj_extract:
-                s_bound = list(sbj_bound_dict[s])
-                o_bound = list(obj_bound_dict[o])
+        for s in ner_extract:
+            for o in ner_extract:
+                if s == o:
+                    continue
+                s_bound = list(ner_bound_dict[s])
+                o_bound = list(ner_bound_dict[o])
                 for s_index in s_bound:
                     for o_index in o_bound:
                         sbj_bounds.append(s_index)
                         obj_bounds.append(o_index)
 
         r_char_lists.append(char_list)
-        if len(sbj_set) != 0 and len(obj_set) != 0:
+        if len(ner_set) > 1:
             r_sbj_bounds.append(sbj_bounds)
             r_obj_bounds.append(obj_bounds)
         else:
@@ -546,10 +477,9 @@ def gen_test_data(file_path, get_answer, task):
             char_lists.append(char_list)
             texts.append(tmp['text'])
             if get_answer:
-                if task == 'sbj':
-                    result.append(set([spo['subject'].lower().strip() for spo in tmp['spo_list']]))
-                elif task == 'obj':
-                    result.append(set([spo['object'].lower().strip() for spo in tmp['spo_list']]))
+                if task == 'ner':
+                    result.append(set([spo['subject'].lower().strip() for spo in tmp['spo_list']]) |
+                                  set([spo['object'].lower().strip() for spo in tmp['spo_list']]))
                 elif task == 'p':
                     result.append([(spo['subject'].lower().strip(), spo['predicate'], spo['object'].lower().strip())
                                    for spo in tmp['spo_list']])
@@ -568,7 +498,7 @@ class MyDatasetNer(Dataset):
         super(Dataset, self).__init__()
         self.is_train = is_train
         if is_train:
-            self.chars, self.ners = gen_train_data_ner(file_path, task=task)
+            self.chars, self.ners = gen_train_data_ner(file_path)
             self.ners = padding(self.ners)
         else:
             self.chars, _ = gen_test_data(file_path, False, task)
@@ -673,6 +603,6 @@ def build_loader(file_path, batch_size, shuffle, drop_last, is_train=True, task=
 
 if __name__ == '__main__':
     # build_vocab_embedding()
-    build_char()
-    # get_dict_schemas()
+    # build_char()
+    get_dict_schemas()
     # pass
