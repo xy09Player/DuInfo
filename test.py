@@ -10,7 +10,9 @@ import json
 import pickle
 from tqdm import tqdm
 from config import config_p
+from config import config_xy
 from modules.model_p import ModelP
+from modules.model_xy import ModelXy
 
 
 def deal_p_r(sbj_bound, obj_bound, result_vec, test_value):
@@ -39,7 +41,7 @@ def test(config, data_type, model_paths, test_value):
         shuffle=False,
         drop_last=False,
         is_train=False,
-        task='p'
+        task='join'
     )
     param = {
         'mode': config.mode,
@@ -51,9 +53,6 @@ def test(config, data_type, model_paths, test_value):
 
     with open('../data/p_dict.pkl', 'rb') as f:
         i2p = pickle.load(f)['i2p']
-
-    with open('../data/val_ner.pkl', 'rb') as f:
-        ner_val = pickle.load(f)
 
     R_sbj_bounds = [[] for _ in range(len(model_paths))]
     R_obj_bounds = [[] for _ in range(len(model_paths))]
@@ -82,13 +81,16 @@ def test(config, data_type, model_paths, test_value):
 
         for batch in tqdm(data_loader):
             batch = [b.cuda() for b in batch]
-            r_sbj_bounds, r_obj_bounds, r_vecs = model(batch, False)
+            r_sbj_bounds, r_obj_bounds, r_vecs = model(batch, is_train=False, have_p=True)
             R_sbj_bounds[ith] += r_sbj_bounds
             R_obj_bounds[ith] += r_obj_bounds
             R_vecs[ith] += r_vecs
 
         if data_type == 'val':
             A, B, C = 1e-10, 1e-10, 1e-10
+            A_sbj, B_sbj, C_sbj = 1e-10, 1e-10, 1e-10
+            A_obj, B_obj, C_obj = 1e-10, 1e-10, 1e-10
+            A_sbj_obj, B_sbj_obj, C_sbj_obj = 1e-10, 1e-10, 1e-10
             for i in range(len(char_lists)):
                 t = set(result[i])
                 text = char_lists[i]
@@ -104,20 +106,68 @@ def test(config, data_type, model_paths, test_value):
                         r.add((sbj, p, obj))
                         r.add((obj, p, sbj))
 
+                sbjs = set([x[0] for x in t])
+                sbjs_p = set()
+                for index_s, index_e in R_sbj_bounds[ith][i]:
+                    sbjs_p.add(''.join(text[index_s: index_e+1]))
+
+                objs = set([x[2] for x in t])
+                objs_p = set()
+                for index_s, index_e in R_obj_bounds[ith][i]:
+                    objs_p.add(''.join(text[index_s: index_e+1]))
+
+                sbjs_objs = set([(xx[0], xx[2]) for xx in t])
+                sbjs_objs_p = set()
+                for s in sbjs_p:
+                    for o in objs_p:
+                        sbjs_objs_p.add((s, o))
+
                 if r != t:
                     print('spo:', t)
                     print('spo_p:', r)
-                    print('ner:', (set([tt[0] for tt in t]) | set([tt[2] for tt in t])))
-                    print('ner_p:', ner_val[i])
+                    print('sbj:', sbjs)
+                    print('sbj_p:', sbjs_p)
+                    print('obj:', objs)
+                    print('obj_p:', objs_p)
+                    print('sbj_obj:', sbjs_objs)
+                    print('sbj_obj_p:', sbjs_objs_p)
                     print('')
 
                 A += len(r & t)
                 B += len(r)
                 C += len(t)
+
+                A_sbj += len(sbjs_p & sbjs)
+                B_sbj += len(sbjs_p)
+                C_sbj += len(sbjs)
+
+                A_obj += len(objs_p & objs)
+                B_obj += len(objs_p)
+                C_obj += len(objs)
+
+                A_sbj_obj += len(sbjs_objs & sbjs_objs_p)
+                B_sbj_obj += len(sbjs_objs_p)
+                C_sbj_obj += len(sbjs_objs)
+
             f1 = A * 2 / (B + C)
             precision = A / B
             recall = A / C
-            print('%s, f1:%.4f, precision:%.4f, recall:%.4f\n' % (model_p, f1, precision, recall))
+            print('%s, join, f1:%.4f, precision:%.4f, recall:%.4f\n' % (model_p, f1, precision, recall))
+
+            f1_sbj = A_sbj * 2 / (B_sbj + C_sbj)
+            precision_sbj = A_sbj / B_sbj
+            recall_sbj = A_sbj / C_sbj
+            print('%s, sbj, f1:%.4f, precision:%.4f, recall:%.4f\n' % (model_p, f1_sbj, precision_sbj, recall_sbj))
+
+            f1_obj = A_obj * 2 / (B_obj + C_obj)
+            precision_obj = A_obj / B_obj
+            recall_obj = A_obj / C_obj
+            print('%s, obj, f1:%.4f, precision:%.4f, recall:%.4f\n' % (model_p, f1_obj, precision_obj, recall_obj))
+
+            f1_sbj_obj = A_sbj_obj * 2 / (B_sbj_obj + C_sbj_obj)
+            precision_sbj_obj = A_sbj_obj / B_sbj_obj
+            recall_sbj_obj = A_sbj_obj / C_sbj_obj
+            print('%s, sbj_obj, f1:%.4f, precision:%.4f, recall:%.4f\n' % (model_p, f1_sbj_obj, precision_sbj_obj, recall_sbj_obj))
 
     if False:
         R_vecs_tmp = R_vecs[0]
@@ -185,9 +235,9 @@ def test(config, data_type, model_paths, test_value):
 
 if __name__ == '__main__':
     # p
-    config = config_p.config
+    config = config_xy.config
     # model_paths = ['model_p_1', 'model_p_2', 'model_p_3', 'model_p_4', 'model_p_5']
-    model_paths = ['model_p_test']
+    model_paths = ['model_xy_test']
     test(config, 'val', model_paths, test_value=0.5)
 
 

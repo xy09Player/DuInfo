@@ -45,22 +45,23 @@ def split_word(word):
 
 
 def get_dict_schemas():
-    ners = set()
+    sbjs = set()
+    objs = set()
     ps = set()
     with open('../data/all_50_schemas') as f:
         for line in f:
             tmp = json.loads(line)
-            ners.add(tmp['subject_type'])
-            ners.add(tmp['object_type'])
+            sbjs.add(tmp['subject_type'])
+            objs.add(tmp['object_type'])
             ps.add(tmp['predicate'])
 
-    # ner字典
-    ner2i = {}
-    i2ner = {}
+    # sbj字典
+    sbj2i = {}
+    i2sbj = {}
     counts = 1
-    for ner in ners:
-        ner2i[ner] = counts
-        i2ner[counts] = ner
+    for sbj in sbjs:
+        sbj2i[sbj] = counts
+        i2sbj[counts] = sbj
         counts += 1
 
     # p字典
@@ -72,16 +73,30 @@ def get_dict_schemas():
         i2p[counts] = p
         counts += 1
 
+    # obj字典
+    obj2i = {}
+    i2obj = {}
+    counts = 1
+    for obj in objs:
+        obj2i[obj] = counts
+        i2obj[counts] = obj
+        counts += 1
+
     # save
-    print(f'ner2i_num:{len(ner2i)}')
-    ner_dict = {'ner2i': ner2i, 'i2ner': i2ner}
-    with open('../data/ner_dict.pkl', 'wb') as f:
-        pickle.dump(ner_dict, f)
+    print(f'sbj2i_num:{len(sbj2i)}')
+    sbj_dict = {'sbj2i': sbj2i, 'i2sbj': i2sbj}
+    with open('../data/sbj_dict.pkl', 'wb') as f:
+        pickle.dump(sbj_dict, f)
 
     print(f'p2i_num:{len(p2i)}')
     p_dict = {'p2i': p2i, 'i2p': i2p}
     with open('../data/p_dict.pkl', 'wb') as f:
         pickle.dump(p_dict, f)
+
+    print(f'obj2i_num:{len(obj2i)}')
+    obj_dict = {'obj2i': obj2i, 'i2obj': i2obj}
+    with open('../data/obj_dict.pkl', 'wb') as f:
+        pickle.dump(obj_dict, f)
 
 
 def build_vocab_embedding():
@@ -466,6 +481,156 @@ def gen_test_data_p(file_path):
     return r_char_lists, r_sbj_bounds, r_obj_bounds
 
 
+def gen_train_data_join(file_path):
+    texts = []
+    char_lists = []
+    spo_lists = []
+    with open(file_path, 'r') as f:
+        for line in f:
+            tmp = json.loads(line)
+            texts.append(tmp['text'])
+            text = tmp['text'].lower().strip()
+            char_list = split_word(text)
+            char_lists.append(char_list)
+            spo_lists.append(tmp['spo_list'])
+
+    with open('../data/p_dict.pkl', 'rb') as f:
+        p2i = pickle.load(f)['p2i']
+
+    r_char_lists = []
+    r_sbjs = []
+    r_objs = []
+    r_sbj_bounds = []
+    r_obj_bounds = []
+    r_ps = []
+    for char_list, spo_list in zip(char_lists, spo_lists):
+        char_len = len(char_list)
+        sbj = np.zeros(char_len)
+        obj = np.zeros(char_len)
+
+        sbj_extract = set()
+        obj_extract = set()
+
+        sbj_set = set([spo['subject'].lower().strip() for spo in spo_list])
+        sbj_set = list(sbj_set)
+        np.random.shuffle(sbj_set)
+        obj_set = set([spo['object'].lower().strip() for spo in spo_list])
+        obj_set = list(obj_set)
+        np.random.shuffle(obj_set)
+
+        sbj_bound_dict = {}
+        obj_bound_dict = {}
+
+        # sbj
+        for sbj_item in sbj_set:
+            sbj_list = split_word(sbj_item)
+            sbj_len = len(sbj_list)
+            for i in range(0, char_len-sbj_len+1):
+                if char_list[i: i+sbj_len] == sbj_list:
+                    sbj_s = i
+                    sbj_e = i + sbj_len - 1
+
+                    flag = False
+                    for item in sbj[sbj_s: sbj_e+1]:
+                        if item != 0:
+                            flag = True
+                            break
+                    if flag:
+                        continue
+
+                    if sbj_s == sbj_e:
+                        sbj[sbj_s] = 4
+                    elif sbj_e - sbj_s == 1:
+                        sbj[sbj_s] = 1
+                        sbj[sbj_e] = 3
+                    elif sbj_e - sbj_s > 1:
+                        sbj[sbj_s] = 1
+                        sbj[sbj_s+1: sbj_e] = 2
+                        sbj[sbj_e] = 3
+                    else:
+                        print('wrong')
+                        assert 1 == -1
+
+                    sbj_extract.add(sbj_item)
+
+                    if sbj_item in sbj_bound_dict:
+                        sbj_bound_dict[sbj_item].add((sbj_s, sbj_e))
+                    else:
+                        sbj_bound_dict[sbj_item] = set([(sbj_s, sbj_e)])
+
+        # obj
+        for obj_item in obj_set:
+            obj_list = split_word(obj_item)
+            obj_len = len(obj_list)
+            for i in range(0, char_len-obj_len+1):
+                if char_list[i: i+obj_len] == obj_list:
+                    obj_s = i
+                    obj_e = i + obj_len - 1
+
+                    flag = False
+                    for item in obj[obj_s: obj_e+1]:
+                        if item != 0:
+                            flag = True
+                            break
+                    if flag:
+                        continue
+
+                    if obj_s == obj_e:
+                        obj[obj_s] = 4
+                    elif obj_e - obj_s == 1:
+                        obj[obj_s] = 1
+                        obj[obj_e] = 3
+                    elif obj_e - obj_s > 1:
+                        obj[obj_s] = 1
+                        obj[obj_s+1: obj_e] = 2
+                        obj[obj_e] = 3
+                    else:
+                        print('wrong')
+                        assert 1 == -1
+
+                    obj_extract.add(obj_item)
+
+                    if obj_item in obj_bound_dict:
+                        obj_bound_dict[obj_item].add((obj_s, obj_e))
+                    else:
+                        obj_bound_dict[obj_item] = set([(obj_s, obj_e)])
+
+        # p
+        sbj_obj_dict = {}
+        for spo in spo_list:
+            if (spo['subject'].lower().strip(), spo['object'].lower().strip()) in sbj_obj_dict:
+                sbj_obj_dict[(spo['subject'].lower().strip(), spo['object'].lower().strip())].append(spo['predicate'])
+            else:
+                sbj_obj_dict[(spo['subject'].lower().strip(), spo['object'].lower().strip())] = [spo['predicate']]
+
+        if len(sbj_extract) == len(sbj_set) and len(obj_extract) == len(obj_set):
+            sbj_bounds = []
+            obj_bounds = []
+            ps = []
+            for so_item, p_list in sbj_obj_dict.items():
+                s, o = so_item
+                s_bound = list(sbj_bound_dict[s])
+                o_bound = list(obj_bound_dict[o])
+                p = [0 for _ in range(49)]
+                for pp in p_list:
+                    p[p2i[pp]] = 1
+                for s_index in s_bound:
+                    for o_index in o_bound:
+                        sbj_bounds.append(s_index)
+                        obj_bounds.append(o_index)
+                        ps.append(p)
+            r_char_lists.append(char_list)
+            r_sbjs.append(sbj.tolist())
+            r_objs.append(obj.tolist())
+            r_sbj_bounds.append(sbj_bounds)
+            r_obj_bounds.append(obj_bounds)
+            r_ps.append(ps)
+
+    print('p, making sample_num:%d/%d, radio:%.4f' % (len(r_char_lists), len(char_lists), len(r_char_lists)/len(char_lists)))
+
+    return r_char_lists, r_sbjs, r_objs, r_sbj_bounds, r_obj_bounds, r_ps
+
+
 def gen_test_data(file_path, get_answer, task):
     char_lists = []
     result = []
@@ -586,11 +751,53 @@ class MyDatasetP(Dataset):
             return item_1, item_2, item_3
 
 
+class MyDatasetJoin(Dataset):
+    def __init__(self, file_path, is_train=True):
+        super(Dataset, self).__init__()
+        self.is_train = is_train
+        if is_train:
+            self.chars, self.sbjs, self.objs, self.sbj_bounds, self.obj_bounds, self.ps = gen_train_data_join(file_path)
+            self.sbjs = padding(self.sbjs)
+            self.objs = padding(self.objs)
+            self.sbj_bounds, _ = padding_three_d(self.sbj_bounds)
+            self.obj_bounds, _ = padding_three_d(self.obj_bounds)
+            self.ps, _ = padding_three_d(self.ps)
+        else:
+            self.chars, _ = gen_test_data(file_path, False, 'p')
+
+        self.chars = char2index(self.chars)
+        self.chars = padding(self.chars)
+
+    def __len__(self):
+        return len(self.chars)
+
+    def __getitem__(self, item):
+        if self.is_train:
+            item1 = torch.LongTensor(self.chars[item])
+            item2 = torch.LongTensor(self.sbjs[item])
+            item3 = torch.LongTensor(self.objs[item])
+            item4 = torch.LongTensor(self.sbj_bounds[item])
+            item5 = torch.LongTensor(self.obj_bounds[item])
+            item6 = torch.LongTensor(self.ps[item])
+
+            return item1, item2, item3, item4, item5, item6
+
+        else:
+            item1 = torch.LongTensor(self.chars[item])
+
+            return item1, torch.LongTensor([1,2,3])
+
+
 def build_loader(file_path, batch_size, shuffle, drop_last, is_train=True, task=None):
     if task == 'p':
         dataset = MyDatasetP(file_path, is_train=is_train)
-    else:
+    elif task == 'ner':
         dataset = MyDatasetNer(file_path, is_train=is_train, task=task)
+    elif task == 'join':
+        dataset = MyDatasetJoin(file_path, is_train=is_train)
+    else:
+        print('wrong task')
+        assert 1 == -1
 
     data_iter = DataLoader(
         dataset=dataset,
