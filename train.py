@@ -1,6 +1,7 @@
 # coding = utf-8
 # author = xy
 
+from gen_ner import gen_ner
 import os
 import time
 import loader
@@ -16,7 +17,7 @@ from modules.model_p import ModelP
 from modules.model_xy import ModelXy
 
 
-def train(task, config):
+def train(task, config, train_ner_file=None, val_ner_file=None):
     time_start = time.time()
     train_loader = loader.build_loader(
         file_path=config.train_path,
@@ -24,7 +25,8 @@ def train(task, config):
         shuffle=True,
         drop_last=True,
         is_train=True,
-        task=task
+        task=task,
+        ner_file=train_ner_file
     )
     val_loader = loader.build_loader(
         file_path=config.val_path,
@@ -32,7 +34,8 @@ def train(task, config):
         shuffle=False,
         drop_last=False,
         is_train=True,
-        task=task
+        task=task,
+        ner_file=val_ner_file
     )
     param = {
         'mode': config.mode,
@@ -53,21 +56,12 @@ def train(task, config):
     print(f'model param_num:{model_param_num}')
 
     plt.ion()
-    plt.figure(figsize=[12, 7])
+    # plt.figure(figsize=[12, 7])
     train_loss = 0
-    train_loss_sbj = 0
-    train_loss_obj = 0
-    train_loss_p = 0
     train_c = 0
 
     train_loss_list = []
-    train_loss_sbj_list = []
-    train_loss_obj_list = []
-    train_loss_p_list = []
     val_loss_list = []
-    val_loss_sbj_list = []
-    val_loss_obj_list = []
-    val_loss_p_list = []
 
     steps = []
     early_stop = 0
@@ -76,63 +70,37 @@ def train(task, config):
             batch = [b.cuda() for b in batch]
             model.train()
             optimizer.zero_grad()
-            loss, loss_sbj, loss_obj, loss_p = model(batch, is_train=True, have_p=False if e == 0 else True)
+            loss = model(batch, is_train=True)
             loss.backward()
             optimizer.step()
             train_loss += loss.item()
-            train_loss_sbj += loss_sbj.item()
-            train_loss_obj += loss_obj.item()
-            train_loss_p += loss_p.item()
             train_c += 1
 
             if train_c % 500 == 0:
                 val_loss = 0
-                val_loss_sbj = 0
-                val_loss_obj = 0
-                val_loss_p = 0
                 val_c = 0
                 with torch.no_grad():
                     model.eval()
                     for batch in val_loader:
                         batch = [b.cuda() for b in batch]
-                        loss, loss_sbj, loss_obj, loss_p = model(batch, is_train=True, have_p=False if e == 0 else True)
+                        loss = model(batch, is_train=True)
                         val_loss += loss.item()
-                        val_loss_sbj += loss_sbj.item()
-                        val_loss_obj += loss_obj.item()
-                        val_loss_p += loss_p.item()
                         val_c += 1
 
                 train_loss_list.append(train_loss / train_c)
-                train_loss_sbj_list.append(train_loss_sbj / train_c)
-                train_loss_obj_list.append(train_loss_obj / train_c)
-                train_loss_p_list.append(train_loss_p / train_c)
-
                 val_loss_list.append(val_loss / val_c)
-                val_loss_sbj_list.append(val_loss_sbj / val_c)
-                val_loss_obj_list.append(val_loss_obj / val_c)
-                val_loss_p_list.append(val_loss_p / val_c)
 
                 steps.append(train_c)
 
-                print('training, epoch:%2d, steps:%5d, '
-                      'train_loss:%.4f, train_sbj_loss:%.4f, train_obj_loss:%.4f, train_p_loss:%.4f, '
-                      'val_loss:%.4f, val_sbj_loss:%.4f, val_obj_loss:%.4f, val_p_loss:%.4f, '
-                      'time:%4d' %
-                      (e, sum(steps),
-                       train_loss/train_c, train_loss_sbj / train_c, train_loss_obj / train_c, train_loss_p / train_c,
-                       val_loss / val_c, val_loss_sbj / val_c, val_loss_obj / val_c, val_loss_p / val_c,
-                       time.time()-time_start))
+                print('epoch:%2d, steps:%5d, train_loss:%.4f, val_loss:%.4f, time:%4d' %
+                      (e, sum(steps), train_loss/train_c, val_loss / val_c, time.time()-time_start))
 
                 train_loss = 0
-                train_loss_sbj = 0
-                train_loss_obj = 0
-                train_loss_p = 0
                 train_c = 0
 
                 # draw
                 plt.cla()
                 x = np.cumsum(steps)
-                plt.subplot(2, 2, 1)
                 plt.title('loss')
                 plt.plot(
                     x,
@@ -143,51 +111,6 @@ def train(task, config):
                 plt.plot(
                     x,
                     val_loss_list,
-                    color='b',
-                    label='val'
-                )
-
-                plt.subplot(2, 2, 2)
-                plt.title('p_loss')
-                plt.plot(
-                    x,
-                    train_loss_p_list,
-                    color='r',
-                    label='train'
-                )
-                plt.plot(
-                    x,
-                    val_loss_p_list,
-                    color='b',
-                    label='val'
-                )
-
-                plt.subplot(2, 2, 3)
-                plt.title('sbj_loss')
-                plt.plot(
-                    x,
-                    train_loss_sbj_list,
-                    color='r',
-                    label='train'
-                )
-                plt.plot(
-                    x,
-                    val_loss_sbj_list,
-                    color='b',
-                    label='val'
-                )
-
-                plt.subplot(2, 2, 4)
-                plt.title('obj_loss')
-                plt.plot(
-                    x,
-                    train_loss_obj_list,
-                    color='r',
-                    label='train'
-                )
-                plt.plot(
-                    x,
-                    val_loss_obj_list,
                     color='b',
                     label='val'
                 )
@@ -223,17 +146,41 @@ def train(task, config):
 
 
 if __name__ == '__main__':
-    # single
-    if True:
-        config = config_xy.config
-        config.model_path = 'model_xy_test'
-        train(task='join', config=config)
-
-    # muti
-    if False:
-        config = config_xy.config
-        for xx in range(1, 2):
-            config.model_path = 'model_xy_' + str(xx)
+    for i in range(4, 6):
+        # ner
+        config = config_ner.config
+        config.model_path = 'model_ner_' + str(i)
+        print(f'{config.model_path}, training...')
         train(task='ner', config=config)
+
+        # ner gen
+        ner_type = 'ner'
+        data_type = 'val'
+        print(f'{config.model_path}, gen val ner...')
+        gen_ner(config, config.model_path, data_type, i)
+
+        data_type = 'train'
+        print(f'{config.model_path}, gen train ner')
+        gen_ner(config, config.model_path, data_type, i)
+
+        data_type = 'test'
+        print(f'{config.model_path}, gen test ner')
+        gen_ner(config, config.model_path, data_type, i)
+
+        # p
+        config = config_p.config
+        config.model_path = 'model_p_' + str(i)
+        train_ner_file = 'train_ner_' + str(i) + '.pkl'
+        val_ner_file = 'val_ner_' + str(i) + '.pkl'
+        train(task='p', config=config, train_ner_file=train_ner_file, val_ner_file=val_ner_file)
+
+
+
+
+
+
+
+
+
 
 

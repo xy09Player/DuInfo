@@ -318,7 +318,7 @@ def gen_train_data_ner(file_path):
     return r_char_lists, r_ners
 
 
-def gen_train_data_p(file_path):
+def gen_train_data_p(file_path, ner_file):
     texts = []
     char_lists = []
     spo_lists = []
@@ -331,19 +331,10 @@ def gen_train_data_p(file_path):
             char_lists.append(char_list)
             spo_lists.append(tmp['spo_list'])
 
-    # if file_path == '../data/train_data.json':
-    #     with open('../data/sbj_train.pkl', 'rb') as f:
-    #         sbj_gens = pickle.load(f)
-    #     with open('../data/obj_train.pkl', 'rb') as f:
-    #         obj_gens = pickle.load(f)
-    # elif file_path == '../data/dev_data.json':
-    #     with open('../data/sbj_val.pkl', 'rb') as f:
-    #         sbj_gens = pickle.load(f)
-    #     with open('../data/obj_val.pkl', 'rb') as f:
-    #         obj_gens = pickle.load(f)
-
-    # assert len(texts) == len(sbj_gens)
-    # assert len(texts) == len(obj_gens)
+    ner_file = '../data/' + ner_file
+    with open(ner_file, 'rb') as f:
+        ner_gens = pickle.load(f)
+    assert len(texts) == len(ner_gens)
 
     with open('../data/p_dict.pkl', 'rb') as f:
         p2i = pickle.load(f)['p2i']
@@ -352,13 +343,11 @@ def gen_train_data_p(file_path):
     r_sbj_bounds = []
     r_obj_bounds = []
     r_ps = []
-    for char_list, spo_list in zip(char_lists, spo_lists):
+    for char_list, ner_gen, spo_list in zip(char_lists, ner_gens, spo_lists):
         char_len = len(char_list)
         ner_bound_dict = {}
         ner_extract = set()
-        sbj_set = set([spo['subject'].lower().strip() for spo in spo_list])
-        obj_set = set([spo['object'].lower().strip() for spo in spo_list])
-        ner_set = sbj_set | obj_set
+        ner_set = ner_gen
 
         # ner
         for ner in ner_set:
@@ -411,7 +400,7 @@ def gen_train_data_p(file_path):
     return r_char_lists, r_sbj_bounds, r_obj_bounds, r_ps
 
 
-def gen_test_data_p(file_path):
+def gen_test_data_p(file_path, ner_file):
     texts = []
     char_lists = []
     with open(file_path, 'r') as f:
@@ -422,16 +411,9 @@ def gen_test_data_p(file_path):
             char_list = split_word(text)
             char_lists.append(char_list)
 
-    if file_path == '../data/dev_data.json':
-        with open('../data/val_ner.pkl', 'rb') as f:
-            ner_gens = pickle.load(f)
-    elif file_path == '../data/test1_data_postag.json':
-        with open('../data/test_ner.pkl', 'rb') as f:
-            ner_gens = pickle.load(f)
-    else:
-        print('wrong file_path')
-        assert 1 == -1
-
+    ner_file = '../data/' + ner_file + '.pkl'
+    with open(ner_file, 'rb') as f:
+        ner_gens = pickle.load(f)
     assert len(texts) == len(ner_gens)
 
     r_char_lists = []
@@ -494,6 +476,12 @@ def gen_train_data_join(file_path):
             char_lists.append(char_list)
             spo_lists.append(tmp['spo_list'])
 
+    with open('../data/sbj_dict.pkl', 'rb') as f:
+        sbj_type_list = list(pickle.load(f)['sbj2i'].keys())
+
+    with open('../data/obj_dict.pkl', 'rb') as f:
+        obj_type_list = list(pickle.load(f)['obj2i'].keys())
+
     with open('../data/p_dict.pkl', 'rb') as f:
         p2i = pickle.load(f)['p2i']
 
@@ -511,10 +499,24 @@ def gen_train_data_join(file_path):
         sbj_extract = set()
         obj_extract = set()
 
-        sbj_set = set([spo['subject'].lower().strip() for spo in spo_list])
+        sbj_set = set()
+        for spo in spo_list:
+            s = spo['subject'].lower().strip()
+            sbj_set.add(s)
+            if spo['object_type'] in sbj_type_list:
+                o = spo['object'].lower().strip()
+                sbj_set.add(o)
+
+        obj_set = set()
+        for spo in spo_list:
+            o = spo['object'].lower().strip()
+            obj_set.add(o)
+            if spo['subject_type'] in obj_type_list:
+                s = spo['subject'].lower().strip()
+                obj_set.add(s)
+
         sbj_set = list(sbj_set)
         np.random.shuffle(sbj_set)
-        obj_set = set([spo['object'].lower().strip() for spo in spo_list])
         obj_set = list(obj_set)
         np.random.shuffle(obj_set)
 
@@ -686,15 +688,15 @@ class MyDatasetNer(Dataset):
 
 
 class MyDatasetP(Dataset):
-    def __init__(self, file_path, is_train=True):
+    def __init__(self, file_path, is_train=True, ner_file=None):
         super(Dataset, self).__init__()
         self.is_train = is_train
         if is_train:
-            self.chars, self.sbj_bounds, self.obj_bounds, self.ps = gen_train_data_p(file_path)
+            self.chars, self.sbj_bounds, self.obj_bounds, self.ps = gen_train_data_p(file_path, ner_file)
             self.ps, self.item_len = padding_three_d(self.ps)
 
         else:
-            self.chars, self.sbj_bounds, self.obj_bounds = gen_test_data_p(file_path)
+            self.chars, self.sbj_bounds, self.obj_bounds = gen_test_data_p(file_path, ner_file)
             self.sbj_bounds, _ = padding_three_d(self.sbj_bounds)
             self.obj_bounds, _ = padding_three_d(self.obj_bounds)
 
@@ -788,9 +790,9 @@ class MyDatasetJoin(Dataset):
             return item1, torch.LongTensor([1,2,3])
 
 
-def build_loader(file_path, batch_size, shuffle, drop_last, is_train=True, task=None):
+def build_loader(file_path, batch_size, shuffle, drop_last, is_train=True, task=None, ner_file=None):
     if task == 'p':
-        dataset = MyDatasetP(file_path, is_train=is_train)
+        dataset = MyDatasetP(file_path, is_train=is_train, ner_file=ner_file)
     elif task == 'ner':
         dataset = MyDatasetNer(file_path, is_train=is_train, task=task)
     elif task == 'join':
