@@ -143,12 +143,12 @@ def test(config, data_type, model_paths, ner_files, top_ns, test_values):
                         if s != o:
                             sbjs_objs_p.add((s, o))
 
-                # if r != t:
-                #     print('spo:', t)
-                #     print('spo_p:', r)
-                #     print('ner:', ners)
-                #     print('ner_p:', ners_p)
-                #     print('')
+                if r != t:
+                    print('spo:', t)
+                    print('spo_p:', r)
+                    print('ner:', ners)
+                    print('ner_p:', ners_p)
+                    print('')
 
                 A += len(r & t)
                 B += len(r)
@@ -178,7 +178,7 @@ def test(config, data_type, model_paths, ner_files, top_ns, test_values):
             print('%s, so, f1:%.4f, precision:%.4f, recall:%.4f\n' % (model_p, f1_sbj_obj, precision_sbj_obj, recall_sbj_obj))
 
     # ensemble
-    if True:
+    if False:
         R_result = [{} for _ in range(len(R_vecs[0]))]
         for i in range(len(R_result)):
             for j in range(len(R_vecs)):
@@ -267,16 +267,16 @@ def test(config, data_type, model_paths, ner_files, top_ns, test_values):
 
 if __name__ == '__main__':
     # val
-    if False:
+    if True:
         config = config_p.config
-        model_paths = ['model_p_1', 'model_p_2', 'model_p_3', 'model_p_4']
-        ner_fils = ['val_ner_1', 'val_ner_2', 'val_ner_3', 'val_ner_4']
+        model_paths = ['model_p_1']
+        ner_fils = ['val_ner_1']
         topns = [2, 3]
         test_values = [0.5]
         test(config, 'val', model_paths, ner_fils, topns, test_values)
 
     # test
-    if True:
+    if False:
         config = config_p.config
         model_paths = ['model_p_1', 'model_p_2', 'model_p_3', 'model_p_4']
         ner_fils = ['test_ner_1', 'test_ner_2', 'test_ner_3', 'test_ner_4']
