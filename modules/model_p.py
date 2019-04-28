@@ -86,6 +86,7 @@ class ModelP(nn.Module):
             text_vec = text_vec.transpose(0, 1)
             batch_size = text.size(0)
             max_samples = sbj_bounds.size(1)
+            max_matchs = sbj_bounds.size(2)
             x = []
             y = []
             for i in range(batch_size):
@@ -96,10 +97,22 @@ class ModelP(nn.Module):
                 # vec_mean = vec.mean(dim=0)
 
                 for j in range(max_samples):
-                    if sbj_bound[j].sum() < 0:
+                    if sbj_bound[j][0].sum() < 0:
                         break
-                    vec_sbj_tmp = vec.index_select(dim=0, index=sbj_bound[j]).mean(dim=0)
-                    vec_obj_tmp = vec.index_select(dim=0, index=obj_bound[j]).mean(dim=0)
+                    vec_sbj_tmp = []
+                    for k in range(max_matchs):
+                        if sbj_bound[j][k].sum() < 0:
+                            break
+                        vec_sbj_tmp.append(vec.index_select(dim=0, index=sbj_bound[j][k]).mean(dim=0).reshape(1, -1))
+                    vec_sbj_tmp = torch.cat(vec_sbj_tmp, dim=0).mean(dim=0)
+
+                    vec_obj_tmp = []
+                    for k in range(max_matchs):
+                        if obj_bound[j][k].sum() < 0:
+                            break
+                        vec_obj_tmp.append(vec.index_select(dim=0, index=obj_bound[j][k]).mean(dim=0).reshape(1, -1))
+                    vec_obj_tmp = torch.cat(vec_obj_tmp, dim=0).mean(dim=0)
+
                     vec_tmp = torch.cat([vec_sbj_tmp, vec_obj_tmp]).reshape(1, -1)
                     x.append(vec_tmp)
                     y.append(p[j].reshape(1, -1))
@@ -146,6 +159,7 @@ class ModelP(nn.Module):
             result_vecs = []
             batch_size = len(text)
             max_samples = sbj_bounds.size(1)
+            max_matchs = sbj_bounds.size(2)
             text_vec = text_vec.transpose(0, 1)
             for i in range(batch_size):
                 vec = text_vec[i]
@@ -157,14 +171,26 @@ class ModelP(nn.Module):
                 result_obj_bound = []
                 result_vec = []
                 for j in range(max_samples):
-                    if sbj_bound[j].sum() < 0:
+                    if sbj_bound[j][0].sum() < 0:
                         break
-                    vec_sbj_tmp = vec.index_select(dim=0, index=sbj_bound[j]).mean(dim=0)
-                    vec_obj_tmp = vec.index_select(dim=0, index=obj_bound[j]).mean(dim=0)
+                    vec_sbj_tmp = []
+                    for k in range(max_matchs):
+                        if sbj_bound[j][k].sum() < 0:
+                            break
+                        vec_sbj_tmp.append(vec.index_select(dim=0, index=sbj_bound[j][k]).mean(dim=0).reshape(1, -1))
+                    vec_sbj_tmp = torch.cat(vec_sbj_tmp, dim=0).mean(dim=0)
+
+                    vec_obj_tmp = []
+                    for k in range(max_matchs):
+                        if obj_bound[j][k].sum() < 0:
+                            break
+                        vec_obj_tmp.append(vec.index_select(dim=0, index=obj_bound[j][k]).mean(dim=0).reshape(1, -1))
+                    vec_obj_tmp = torch.cat(vec_obj_tmp, dim=0).mean(dim=0)
+
                     vec_tmp = torch.cat([vec_sbj_tmp, vec_obj_tmp]).reshape(1, -1)
 
-                    result_sbj_bound.append(sbj_bound[j].cpu().numpy().tolist())
-                    result_obj_bound.append(obj_bound[j].cpu().numpy().tolist())
+                    result_sbj_bound.append(sbj_bound[j][0].cpu().numpy().tolist())
+                    result_obj_bound.append(obj_bound[j][0].cpu().numpy().tolist())
                     result_vec.append(vec_tmp)
 
                 result_vec = torch.cat(result_vec, dim=0)

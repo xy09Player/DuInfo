@@ -343,6 +343,7 @@ def gen_train_data_p(file_path, ner_file):
     r_sbj_bounds = []
     r_obj_bounds = []
     r_ps = []
+    max_match_nums = 0
     for char_list, ner_gen, spo_list in zip(char_lists, ner_gens, spo_lists):
         char_len = len(char_list)
         ner_bound_dict = {}
@@ -388,6 +389,8 @@ def gen_train_data_p(file_path, ner_file):
                 sbj_bounds.append(s_bound)
                 obj_bounds.append(o_bound)
                 ps.append(p)
+                max_match_nums = max(max_match_nums, len(s_bound))
+                max_match_nums = max(max_match_nums, len(o_bound))
 
         if len(ner_extract) > 1:
             r_char_lists.append(char_list)
@@ -397,7 +400,7 @@ def gen_train_data_p(file_path, ner_file):
 
     print('p, making sample_num:%d/%d, radio:%.4f' % (len(r_char_lists), len(char_lists), len(r_char_lists)/len(char_lists)))
 
-    return r_char_lists, r_sbj_bounds, r_obj_bounds, r_ps
+    return r_char_lists, r_sbj_bounds, r_obj_bounds, r_ps, max_match_nums
 
 
 def gen_test_data_p(file_path, ner_file):
@@ -419,6 +422,8 @@ def gen_test_data_p(file_path, ner_file):
     r_char_lists = []
     r_sbj_bounds = []
     r_obj_bounds = []
+    max_match_nums = 0
+    max_len = 0
     for char_list, ner_gen in zip(char_lists, ner_gens):
         char_len = len(char_list)
         ner_bound_dict = {}
@@ -447,20 +452,22 @@ def gen_test_data_p(file_path, ner_file):
                     continue
                 s_bound = list(ner_bound_dict[s])
                 o_bound = list(ner_bound_dict[o])
-                for s_index in s_bound:
-                    for o_index in o_bound:
-                        sbj_bounds.append(s_index)
-                        obj_bounds.append(o_index)
+                sbj_bounds.append(s_bound)
+                obj_bounds.append(o_bound)
+
+                max_match_nums = max(max_match_nums, len(s_bound))
+                max_match_nums = max(max_match_nums, len(o_bound))
+        max_len = max(max_len, len(sbj_bounds))
 
         r_char_lists.append(char_list)
         if len(ner_set) > 1:
             r_sbj_bounds.append(sbj_bounds)
             r_obj_bounds.append(obj_bounds)
         else:
-            r_sbj_bounds.append([(0, 0)])
-            r_obj_bounds.append([(0, 0)])
+            r_sbj_bounds.append([[(0, 0)]])
+            r_obj_bounds.append([[(0, 0)]])
 
-    return r_char_lists, r_sbj_bounds, r_obj_bounds
+    return r_char_lists, r_sbj_bounds, r_obj_bounds, max_match_nums, max_len
 
 
 def gen_train_data_join(file_path):
@@ -692,13 +699,11 @@ class MyDatasetP(Dataset):
         super(Dataset, self).__init__()
         self.is_train = is_train
         if is_train:
-            self.chars, self.sbj_bounds, self.obj_bounds, self.ps = gen_train_data_p(file_path, ner_file)
+            self.chars, self.sbj_bounds, self.obj_bounds, self.ps, self.max_matchs = gen_train_data_p(file_path, ner_file)
             self.ps, self.item_len = padding_three_d(self.ps)
 
         else:
-            self.chars, self.sbj_bounds, self.obj_bounds = gen_test_data_p(file_path, ner_file)
-            self.sbj_bounds, _ = padding_three_d(self.sbj_bounds)
-            self.obj_bounds, _ = padding_three_d(self.obj_bounds)
+            self.chars, self.sbj_bounds, self.obj_bounds, self.max_matchs, self.item_len = gen_test_data_p(file_path, ner_file)
 
         self.chars = char2index(self.chars)
         self.chars = padding(self.chars)
@@ -714,24 +719,22 @@ class MyDatasetP(Dataset):
             # sbj_bound
             sbj_bound = self.sbj_bounds[item]
             sbj_bound_tmp = []
-            for s_bound in sbj_bound:
-                if len(s_bound) == 1:
-                    sbj_bound_tmp.append(s_bound[0])
-                else:
-                    sbj_bound_tmp.append(s_bound[random.randint(0, len(s_bound)-1)])
             fill = (-9, -9)
+            for s_bound in sbj_bound:
+                fill_bound = [fill for _ in range(self.max_matchs - len(s_bound))]
+                sbj_bound_tmp.append(s_bound + fill_bound)
+            fill = [fill for _ in range(self.max_matchs)]
             sbj_bound_tmp += [fill for _ in range(self.item_len-len(sbj_bound_tmp))]
             item_2 = torch.LongTensor(sbj_bound_tmp)
 
             # obj_bound
             obj_bound = self.obj_bounds[item]
             obj_bound_tmp = []
-            for o_bound in obj_bound:
-                if len(o_bound) == 1:
-                    obj_bound_tmp.append(o_bound[0])
-                else:
-                    obj_bound_tmp.append(o_bound[random.randint(0, len(o_bound)-1)])
             fill = (-9, -9)
+            for o_bound in obj_bound:
+                fill_bound = [fill for _ in range(self.max_matchs - len(o_bound))]
+                obj_bound_tmp.append(o_bound + fill_bound)
+            fill = [fill for _ in range(self.max_matchs)]
             obj_bound_tmp += [fill for _ in range(self.item_len-len(obj_bound_tmp))]
             item_3 = torch.LongTensor(obj_bound_tmp)
 
@@ -745,10 +748,26 @@ class MyDatasetP(Dataset):
             item_1 = torch.LongTensor(self.chars[item])
 
             # sbj_bound
-            item_2 = torch.LongTensor(self.sbj_bounds[item])
+            sbj_bound = self.sbj_bounds[item]
+            sbj_bound_tmp = []
+            fill = (-9, -9)
+            for s_bound in sbj_bound:
+                fill_bound = [fill for _ in range(self.max_matchs - len(s_bound))]
+                sbj_bound_tmp.append(s_bound + fill_bound)
+            fill = [fill for _ in range(self.max_matchs)]
+            sbj_bound_tmp += [fill for _ in range(self.item_len-len(sbj_bound_tmp))]
+            item_2 = torch.LongTensor(sbj_bound_tmp)
 
             # obj_bound
-            item_3 = torch.LongTensor(self.obj_bounds[item])
+            obj_bound = self.obj_bounds[item]
+            obj_bound_tmp = []
+            fill = (-9, -9)
+            for o_bound in obj_bound:
+                fill_bound = [fill for _ in range(self.max_matchs - len(o_bound))]
+                obj_bound_tmp.append(o_bound + fill_bound)
+            fill = [fill for _ in range(self.max_matchs)]
+            obj_bound_tmp += [fill for _ in range(self.item_len-len(obj_bound_tmp))]
+            item_3 = torch.LongTensor(obj_bound_tmp)
 
             return item_1, item_2, item_3
 

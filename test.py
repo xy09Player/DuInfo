@@ -183,7 +183,10 @@ def test(config, data_type, model_paths, ner_files, top_ns, test_values):
         for i in range(len(R_result)):
             for j in range(len(R_vecs)):
                 for sbj_index, obj_index, px in zip(R_sbj_bounds[j][i], R_obj_bounds[j][i], R_vecs[j][i]):
-                    xxx = (tuple(sbj_index), tuple(obj_index))
+                    text = char_lists[i]
+                    sbj_str = ''.join(text[sbj_index[0]: sbj_index[1]+1])
+                    obj_str = ''.join(text[obj_index[0]: obj_index[1]+1])
+                    xxx = (sbj_str, obj_str)
                     if xxx in R_result[i]:
                         R_result[i][xxx].append(px)
                     else:
@@ -196,12 +199,11 @@ def test(config, data_type, model_paths, ner_files, top_ns, test_values):
                     A, B, C = 1e-10, 1e-10, 1e-10
                     for i in range(len(char_lists)):
                         t = set(result[i])
-                        text = char_lists[i]
                         r_tmp = deal_p_r_ensemble(R_result[i], topn, test_value)
                         r = set()
                         for r_i in r_tmp:
-                            sbj = ''.join(text[r_i[0][0]: r_i[0][1]+1])
-                            obj = ''.join(text[r_i[1][0]: r_i[1][1]+1])
+                            sbj = r_i[0]
+                            obj = r_i[1]
                             p = i2p[r_i[2]]
                             if sbj == obj:
                                 continue
@@ -232,12 +234,11 @@ def test(config, data_type, model_paths, ner_files, top_ns, test_values):
             topn = top_ns
             result_writer = open('../result/result.json', 'w')
             for i in range(len(char_lists)):
-                text = char_lists[i]
                 r_tmp = deal_p_r_ensemble(R_result[i], topn, test_value=test_values)
                 r = set()
                 for r_i in r_tmp:
-                    sbj = ''.join(text[r_i[0][0]: r_i[0][1]+1])
-                    obj = ''.join(text[r_i[1][0]: r_i[1][1]+1])
+                    sbj = r_i[0]
+                    obj = r_i[1]
                     p = i2p[r_i[2]]
                     if sbj == obj:
                         continue
