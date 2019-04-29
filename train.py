@@ -146,33 +146,20 @@ def train(task, config, train_ner_file=None, val_ner_file=None):
 
 
 if __name__ == '__main__':
-    for i in range(1, 2):
-        # ner
-        # config = config_ner.config
-        # config.model_path = 'model_ner_' + str(i)
-        # print(f'{config.model_path}, training...')
-        # train(task='ner', config=config)
-        #
-        # # ner gen
-        # ner_type = 'ner'
-        # data_type = 'val'
-        # print(f'{config.model_path}, gen val ner...')
-        # gen_ner(config, config.model_path, data_type, i)
-        #
-        # data_type = 'train'
-        # print(f'{config.model_path}, gen train ner')
-        # gen_ner(config, config.model_path, data_type, i)
-        #
-        # data_type = 'test'
-        # print(f'{config.model_path}, gen test ner')
-        # gen_ner(config, config.model_path, data_type, i)
+    # ner
+    if False:
+        for i in range(1, 2):
+            config = config_ner.config
+            config.model_path = 'model_ner_' + str(i)
+            print(f'{config.model_path}, training...')
+            train(task='ner', config=config)
 
-        # p
-        config = config_p.config
-        config.model_path = 'model_p_' + str(i)
-        train_ner_file = 'train_ner_' + str(i) + '.pkl'
-        val_ner_file = 'val_ner_' + str(i) + '.pkl'
-        train(task='p', config=config, train_ner_file=train_ner_file, val_ner_file=val_ner_file)
+    # p
+    if True:
+        for i in range(2, 3):
+            config = config_p.config
+            config.model_path = 'model_p_' + str(i)
+            train(task='p', config=config)
 
 
 

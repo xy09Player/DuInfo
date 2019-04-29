@@ -76,6 +76,12 @@ def gen_ner(config, model_path, data_type, index_xx):
                             if ner[i:][j] == 0:
                                 index_e = i + j - 1
                                 break
+                            if ner[i:][j] == 3:
+                                index_e = i + j
+                                break
+                            if ner[i:][j] == 4:
+                                index_e = i + j
+                                break
                             if j == len(ner[i:]) - 1:
                                 index_e = len(ner) - 1
                         tmp.append((index_s, index_e))
@@ -165,19 +171,10 @@ if __name__ == '__main__':
         print(f'{model_path}, val...')
         gen_ner(config, model_path, data_type, i)
 
-        data_type = 'train'
-        print(f'{model_path}, train...')
-        gen_ner(config, model_path, data_type, i)
+        # data_type = 'train'
+        # print(f'{model_path}, train...')
+        # gen_ner(config, model_path, data_type, i)
 
         data_type = 'test'
         print(f'{model_path}, test...')
         gen_ner(config, model_path, data_type, i)
-
-
-
-
-
-
-
-
-

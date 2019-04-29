@@ -318,7 +318,7 @@ def gen_train_data_ner(file_path):
     return r_char_lists, r_ners
 
 
-def gen_train_data_p(file_path, ner_file):
+def gen_train_data_p(file_path):
     texts = []
     char_lists = []
     spo_lists = []
@@ -331,11 +331,6 @@ def gen_train_data_p(file_path, ner_file):
             char_lists.append(char_list)
             spo_lists.append(tmp['spo_list'])
 
-    ner_file = '../data/' + ner_file
-    with open(ner_file, 'rb') as f:
-        ner_gens = pickle.load(f)
-    assert len(texts) == len(ner_gens)
-
     with open('../data/p_dict.pkl', 'rb') as f:
         p2i = pickle.load(f)['p2i']
 
@@ -344,11 +339,14 @@ def gen_train_data_p(file_path, ner_file):
     r_obj_bounds = []
     r_ps = []
     max_match_nums = 0
-    for char_list, ner_gen, spo_list in zip(char_lists, ner_gens, spo_lists):
+    for char_list, spo_list in zip(char_lists, spo_lists):
         char_len = len(char_list)
         ner_bound_dict = {}
         ner_extract = set()
-        ner_set = ner_gen
+
+        sbj_set = set([spo['subject'].lower().strip() for spo in spo_list])
+        obj_set = set([spo['object'].lower().strip() for spo in spo_list])
+        ner_set = sbj_set | obj_set
 
         # ner
         for ner in ner_set:
@@ -699,7 +697,7 @@ class MyDatasetP(Dataset):
         super(Dataset, self).__init__()
         self.is_train = is_train
         if is_train:
-            self.chars, self.sbj_bounds, self.obj_bounds, self.ps, self.max_matchs = gen_train_data_p(file_path, ner_file)
+            self.chars, self.sbj_bounds, self.obj_bounds, self.ps, self.max_matchs = gen_train_data_p(file_path)
             self.ps, self.item_len = padding_three_d(self.ps)
 
         else:
