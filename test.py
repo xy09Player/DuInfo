@@ -397,7 +397,7 @@ def test_ensemble(config, data_type, model_paths, ner_files, top_ns, test_values
 
 if __name__ == '__main__':
     is_val = False
-    is_ensemble = False
+    is_ensemble = True
 
     # val, single
     if is_val and not is_ensemble:
@@ -417,21 +417,21 @@ if __name__ == '__main__':
     elif is_val and is_ensemble:
         config = config_p.config
         data_type = 'val'
-        model_paths = ['model_p_1']
-        ner_files = ['val_ner_1', 'val_ner_2', 'val_ner_3', 'val_ner_4']
-        # top_ns = [1, 2, 3, 4]
-        top_ns = [3]
-        # test_values = [0.4, 0.45, 0.5, 0.55, 0.6]
-        test_values = [0.5, 0.55, 0.6, 0.7, 0.75, 0.8]
+        model_paths = ['model_p_1', 'model_p_2', 'model_p_3', 'model_p_4', 'model_p_5']
+        ner_files = ['val_ner_1', 'val_ner_2', 'val_ner_3', 'val_ner_4', 'val_ner_5', 'val_ner_6',
+                     'val_ner_7', 'val_ner_8', 'val_ner_9', 'val_ner_10']
+        top_ns = [3, 4, 5, 6, 7, 8]
+        test_values = [0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7]
         test_ensemble(config, data_type, model_paths, ner_files, top_ns, test_values)
 
     # test ensemble
     elif not is_val and is_ensemble:
         config = config_p.config
         data_type = 'test'
-        model_paths = ['model_p_1']
-        ner_files = ['test_ner_1', 'test_ner_2', 'test_ner_3', 'test_ner_4']
-        top_ns = 3
+        model_paths = ['model_p_1', 'model_p_2', 'model_p_3', 'model_p_4', 'model_p_5']
+        ner_files = ['test_ner_1', 'test_ner_2', 'test_ner_3', 'test_ner_4', 'test_ner_5', 'test_ner_6',
+                     'test_ner_7', 'test_ner_8', 'test_ner_9', 'test_ner_10']
+        top_ns = 7
         test_values = 0.5
         test_ensemble(config, data_type, model_paths, ner_files, top_ns, test_values)
 

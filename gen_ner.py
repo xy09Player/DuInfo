@@ -127,7 +127,7 @@ def gen_ner(config, model_path, data_type, index_xx):
         f1 = A * 2 / (B + C)
         precision = A / B
         recall = A / C
-        print('%s, ner, f1:%.4f, precision:%.4f, recall:%.4f\n' % (model_path, f1, precision, recall))
+        print('%s, ner, f1:%.4f, precision:%.4f, recall:%.4f' % (model_path, f1, precision, recall))
 
         f1_so = A_so * 2 / (B_so + C_so)
         precision_so = A_so / B_so
@@ -163,10 +163,10 @@ if __name__ == '__main__':
     # ner
     config = config_ner.config
     ner_type = 'ner'
-    model_paths = ['model_ner_1']
+    model_paths = ['model_ner_5', 'model_ner_6', 'model_ner_7', 'model_ner_8', 'model_ner_9', 'model_ner_10']
 
     for i, model_path in enumerate(model_paths):
-        i = i + 1
+        i = i + 5
         data_type = 'val'
         print(f'{model_path}, val...')
         gen_ner(config, model_path, data_type, i)
