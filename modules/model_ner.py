@@ -43,8 +43,11 @@ class ModelNer(nn.Module):
             is_bn=self.is_bn
         )
 
+        # p分类
+        self.p_fc = nn.Linear(self.hidden_size*2, 49)
+
         # ner位置映射
-        self.ner = nn.Linear(self.hidden_size*2, 5)
+        self.ner = nn.Linear(self.hidden_size*2+49, 5)
 
         # crf
         self.crf = CRF(num_tags=5)
@@ -58,7 +61,7 @@ class ModelNer(nn.Module):
 
     def forward(self, batch, is_train=True):
         if is_train:
-            text, ner = batch
+            text, ner, p = batch
 
             # 语义编码
             text_mask = torch.ne(text, 0)
@@ -68,12 +71,21 @@ class ModelNer(nn.Module):
             text_emb = self.embedding(text).transpose(0, 1)
             text_vec = self.encoder(text_emb, text_mask)
 
+            # p
+            p_vec = text_vec.mean(dim=0)
+            p_vec = torch.sigmoid(self.p_fc(p_vec))
+            loss_p = F.binary_cross_entropy(p_vec, p.float())
+
             # rnn_feat
-            ner_feat = self.ner(text_vec)  # (seq_len, b, 5)
+            p_vec = p_vec.unsqueeze(0).expand(text_vec.size(0), text_vec.size(1), 49)
+            ner_feat = torch.cat([text_vec, p_vec], dim=-1)
+            ner_feat = self.ner(ner_feat)  # (seq_len, b, 5)
             ner = ner[:, :max_len].transpose(0, 1)  # (seq_len, b)
             text_mask = text_mask.transpose(0, 1)  # (seq_len, b)
 
-            loss = -1 * self.crf(ner_feat, ner, mask=text_mask, reduction='token_mean')
+            loss_ner = -1 * self.crf(ner_feat, ner, mask=text_mask, reduction='token_mean')
+
+            loss = loss_p * 0.2 + loss_ner
 
             return loss
         else:
@@ -87,8 +99,14 @@ class ModelNer(nn.Module):
             text_emb = self.embedding(text).transpose(0, 1)
             text_vec = self.encoder(text_emb, text_mask)
 
+            # p
+            p_vec = text_vec.mean(dim=0)
+            p_vec = torch.sigmoid(self.p_fc(p_vec))
+
             # rnn_feat
-            ner_feat = self.ner(text_vec)  # (seq_len, b, 5)
+            p_vec = p_vec.unsqueeze(0).expand(text_vec.size(0), text_vec.size(1), 49)
+            ner_feat = torch.cat([text_vec, p_vec], dim=-1)
+            ner_feat = self.ner(ner_feat)  # (seq_len, b, 5)
             text_mask = text_mask.transpose(0, 1)  # (seq_len, b)
 
             # decoder

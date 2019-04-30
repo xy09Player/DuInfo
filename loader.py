@@ -264,9 +264,13 @@ def gen_train_data_ner(file_path):
             char_lists.append(char_list)
             spo_lists.append(tmp['spo_list'])
 
+    with open('../data/p_dict.pkl', 'rb') as f:
+        p2i = pickle.load(f)['p2i']
+
     r_texts = []
     r_char_lists = []
     r_ners = []
+    r_ps = []
     for text, char_list, spo_list in zip(texts, char_lists, spo_lists):
         char_len = len(char_list)
         ner = np.zeros(char_len)
@@ -308,14 +312,21 @@ def gen_train_data_ner(file_path):
                         assert 1 == -1
                     spo_extract.add(ner_i)
 
+        p_index = [0 for _ in range(49)]
+        for spo in spo_list:
+            p_item = spo['predicate']
+            p_i = p2i[p_item]
+            p_index[p_i] = 1
+
         if len(spo_extract) != 0:
             r_texts.append(text)
             r_char_lists.append(char_list)
             r_ners.append(ner.tolist())
+            r_ps.append(p_index)
 
     print('ner, make samples_num:%d/%d, radio:%.4f' % (len(r_texts), len(texts), len(r_texts)/len(texts)))
 
-    return r_char_lists, r_ners
+    return r_char_lists, r_ners, r_ps
 
 
 def gen_train_data_p(file_path):
@@ -670,7 +681,7 @@ class MyDatasetNer(Dataset):
         super(Dataset, self).__init__()
         self.is_train = is_train
         if is_train:
-            self.chars, self.ners = gen_train_data_ner(file_path)
+            self.chars, self.ners, self.ps = gen_train_data_ner(file_path)
             self.ners = padding(self.ners)
         else:
             self.chars, _ = gen_test_data(file_path, False, task)
@@ -685,8 +696,9 @@ class MyDatasetNer(Dataset):
         if self.is_train:
             item_1 = torch.LongTensor(self.chars[item])
             item_2 = torch.LongTensor(self.ners[item])
+            item_3 = torch.LongTensor(self.ps[item])
 
-            return item_1, item_2
+            return item_1, item_2, item_3
         else:
             item_1 = torch.LongTensor(self.chars[item])
             return item_1, torch.Tensor([1, 2])

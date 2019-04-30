@@ -147,7 +147,7 @@ def train(task, config, train_ner_file=None, val_ner_file=None):
 
 if __name__ == '__main__':
     # ner
-    if False:
+    if True:
         for i in range(1, 2):
             config = config_ner.config
             config.model_path = 'model_ner_' + str(i)
@@ -155,7 +155,7 @@ if __name__ == '__main__':
             train(task='ner', config=config)
 
     # p
-    if True:
+    if False:
         for i in range(2, 3):
             config = config_p.config
             config.model_path = 'model_p_' + str(i)

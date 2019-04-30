@@ -111,10 +111,10 @@ def gen_ner(config, model_path, data_type, index_xx):
                     if s != o:
                         sbjs_objs_p.add((s, o))
 
-            # if r != t:
-            #     print('ner:', t)
-            #     print('ner_p:', r)
-            #     print('')
+            if r != t:
+                print('ner:', t)
+                print('ner_p:', r)
+                print('')
 
             A += len(r & t)
             B += len(r)
@@ -163,7 +163,7 @@ if __name__ == '__main__':
     # ner
     config = config_ner.config
     ner_type = 'ner'
-    model_paths = ['model_ner_5', 'model_ner_6', 'model_ner_7', 'model_ner_8', 'model_ner_9', 'model_ner_10']
+    model_paths = ['model_ner_1']
 
     for i, model_path in enumerate(model_paths):
         i = i + 5
